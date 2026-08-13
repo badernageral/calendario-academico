@@ -1,0 +1,12 @@
+# O banco é o dado da instituição, não o sistema: fica de fora, junto dos
+# arquivos que o SQLite cria ao lado dele em modo WAL.
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
+
+# Cópias geradas pela tela de Backup.
+backups/*.sqlite
+
+# Python do importador da planilha.
+__pycache__/
+*.pyc

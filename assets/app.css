@@ -1,0 +1,311 @@
+/* ─────────────────────────────────────────────
+   Calendário Acadêmico — Design System
+   Mesmo esqueleto do sistema de Horários (SGA),
+   sobre o Bootstrap 5.
+   ─────────────────────────────────────────── */
+
+:root {
+  --sidebar-width: 220px;
+  --sidebar-bg: #1e293b;
+  --sidebar-text: #cbd5e1;
+  --sidebar-hover: #334155;
+  --sidebar-active: #3b82f6;
+  --topbar-height: 56px;
+}
+
+/* ── Layout ────────────────────────────────── */
+body {
+  background: #f1f5f9;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.9rem;
+}
+
+#wrapper { min-height: 100vh; }
+
+/* ── Sidebar ───────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
+  z-index: 100;
+}
+
+#sidebar.collapsed { width: 60px; }
+
+#sidebar.collapsed .sidebar-brand span,
+#sidebar.collapsed .nav-link span,
+#sidebar.collapsed .sidebar-footer { display: none !important; }
+
+#sidebar.collapsed .sidebar-brand { justify-content: center; padding-left: 0 !important; padding-right: 0 !important; }
+#sidebar.collapsed .nav-link { text-align: center; padding: 0.5rem; }
+#sidebar.collapsed .nav-link i { margin: 0 !important; font-size: 1.15rem; }
+
+.sidebar-brand {
+  color: #fff !important;
+  font-size: 1.05rem;
+  background: #0f172a;
+  height: 60px;
+}
+
+.sidebar-divider { border-color: #334155; opacity: 1; }
+
+#sidebar .nav-link {
+  color: var(--sidebar-text);
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+#sidebar .nav-link:hover { background: var(--sidebar-hover); color: #fff; }
+#sidebar .nav-link.active { background: var(--sidebar-active); color: #fff; font-weight: 600; }
+
+.sidebar-footer {
+  border-top: 1px solid #334155;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+/* ── Page Content ──────────────────────────── */
+/* clip, e não hidden: hidden faz do #page-content um contêiner de rolagem e o
+   scrollIntoView do formulário passa a rolar ele em vez da página. */
+#page-content { min-width: 0; overflow-x: clip; }
+
+.topbar {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  height: var(--topbar-height);
+  position: sticky;
+  top: 0;
+  z-index: 99;
+}
+
+.content-wrapper { min-height: calc(100vh - var(--topbar-height)); }
+
+/* ── Cards ─────────────────────────────────── */
+.card { border-radius: 10px; }
+.card-header { border-radius: 10px 10px 0 0 !important; padding: 0.75rem 1rem; }
+
+.stat-card { transition: transform 0.15s, box-shadow 0.15s; }
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important; }
+
+.stat-icon {
+  border-radius: 10px !important;
+  min-width: 46px; min-height: 46px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Tables ─────────────────────────────────── */
+.table thead th {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  border-bottom-width: 1px;
+}
+.table-hover tbody tr:hover { background: #f8faff; }
+
+/* ── Buttons / Forms ────────────────────────── */
+.btn-xs { font-size: 0.7rem; padding: 0.2rem 0.45rem; border-radius: 4px; }
+.form-label { font-weight: 500; font-size: 0.85rem; margin-bottom: 0.3rem; }
+.form-text { font-size: 0.75rem; }
+
+/* ── Badges ─────────────────────────────────── */
+.badge { font-weight: 500; letter-spacing: 0.02em; }
+
+/* ── Seletor de período (modal de evento) ───── */
+.seletor-datas {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+  max-width: 300px;
+}
+.seletor-datas .topo-seletor {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.seletor-datas .mes-atual { font-weight: 600; font-size: 0.85rem; }
+.seletor-datas .semana-cabecalho,
+.seletor-datas .dias-seletor {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+}
+.seletor-datas .semana-cabecalho span {
+  text-align: center; font-size: 0.68rem; font-weight: 600;
+  color: #64748b; padding-bottom: 2px;
+}
+.dia-seletor {
+  border: 0; border-radius: 6px;
+  padding: 0; height: 32px;
+  background: transparent; color: #0f172a;
+  font-size: 0.8rem; line-height: 1;
+}
+.dia-seletor:hover { background: #e2e8f0; }
+.dia-seletor.previa { background: #dbeafe; }
+.dia-seletor.escolhido { background: #cfe2ff; color: #084298; font-weight: 600; }
+.dia-seletor.inicio { background: #0d6efd; color: #fff; font-weight: 600; }
+
+.faixas-escolhidas { list-style: none; margin: 0 0 .25rem; padding: 0; }
+.faixas-escolhidas li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px; margin-bottom: 4px;
+  border: 1px solid #dee2e6; border-radius: 6px;
+  background: #f8fafc; font-size: 0.82rem;
+}
+.faixas-escolhidas li span { flex: 1; }
+.faixas-escolhidas li .btn-close { font-size: 0.6rem; }
+.faixas-escolhidas .vazia {
+  border-style: dashed; color: #94a3b8; background: transparent; justify-content: center;
+}
+
+/* ── Início rápido ──────────────────────────── */
+.quick-step:hover { background: #f8fafc; }
+.quick-step:last-child { border-bottom: 0 !important; }
+
+/* ── Específicos do calendário ──────────────── */
+
+/* amostra de cor da categoria */
+.amostra {
+  display: inline-block; width: 22px; height: 14px;
+  border: 1px solid #94a3b8; border-radius: 3px; vertical-align: middle;
+}
+
+.mes-titulo {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: #64748b;
+  margin: 1.4rem 0 .4rem;
+}
+
+/* Grade anual clicável — mesmas cores da impressão (assets/calendario.css) */
+.grade-anual {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+@media (max-width: 1200px) { .grade-anual { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 768px)  { .grade-anual { grid-template-columns: minmax(0, 1fr); } }
+
+.mes-coluna { display: flex; flex-direction: column; }
+
+table.mes-grade {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  font-size: 0.78rem;
+}
+table.mes-grade th,
+table.mes-grade td {
+  border: 1px solid #94a3b8;
+  height: 26px;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 400;
+  padding: 0;
+}
+/* As cores fixas da grade vêm de Configurações, por variáveis que a página
+   define em .grade-anual. Dia com categoria tem style inline, que vence. */
+.mes-grade .nome-mes th { background: var(--mes, #92d050); font-size: 0.82rem; font-weight: 600; }
+.mes-grade .dow th { font-size: 0.72rem; height: 22px; }
+.mes-grade .dow .util { background: var(--dow, #8eb4e3); }
+.mes-grade .dow .fds  { background: var(--dia-fds, #ccc1da); }
+.mes-grade td.dia       { background: var(--dia-util, #fff); }
+.mes-grade td.dia.fds   { background: var(--dia-fds, #ccc1da); }
+/* As sobras do mês seguem a cor da coluna, senão a semana começa e termina com
+   um pedaço branco no meio da cor escolhida. */
+.mes-grade td.vazio-fds { background: var(--dia-fds, #ccc1da); }
+.mes-grade td.vazio     { background: var(--dia-util, #fff); }
+
+.mes-grade td.dia { cursor: pointer; position: relative; }
+.mes-grade td.dia:hover { outline: 2px solid #2563eb; outline-offset: -2px; }
+/* ponto discreto: o dia tem evento mesmo quando a cor não muda */
+.mes-grade td.dia.tem-evento::after {
+  content: ""; position: absolute; left: 50%; bottom: 2px;
+  width: 4px; height: 4px; margin-left: -2px;
+  border-radius: 50%; background: currentColor; opacity: .5;
+}
+
+.mes-grade .contagem td { background: #ccc1da; font-size: 0.68rem; height: 20px; }
+.mes-grade .total td { font-weight: 600; font-size: 0.7rem; height: 22px; }
+.mes-grade .total td:last-child { text-align: left; padding-left: 4px; }
+
+.legenda-grade .amostra { width: 18px; height: 11px; }
+
+/* Lista de eventos embaixo de cada mês, como na impressão — mas clicável. */
+.eventos-mes { list-style: none; margin: 0; padding: 0; }
+.eventos-mes li {
+  display: flex; align-items: flex-start; gap: 5px;
+  border: 1px solid #94a3b8; border-top: none;
+  padding: 3px 5px;
+  font-size: 0.7rem; line-height: 1.3;
+}
+.eventos-mes li:hover { background: #f8faff; }
+.eventos-mes a { flex: 1; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.eventos-mes a:hover { color: #2563eb; }
+.eventos-mes a.negrito { font-weight: 700; }
+.eventos-mes .chip {
+  flex: none; width: 9px; height: 9px; margin-top: 3px;
+  border: 1px solid #94a3b8; border-radius: 2px;
+}
+.eventos-mes .marca {
+  display: inline-block; margin-left: 4px; padding: 0 4px;
+  border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #f1f5f9; color: #64748b; font-size: 0.6rem; vertical-align: middle;
+}
+.eventos-mes form { display: inline; }
+.eventos-mes .apagar {
+  border: 0; background: none; padding: 0 1px;
+  color: #cbd5e1; font-size: 0.65rem; line-height: 1;
+}
+.eventos-mes .apagar:hover { color: #dc2626; background: none; }
+.eventos-mes .sem-evento { color: #94a3b8; font-style: italic; justify-content: center; }
+
+table.eventos td.cor { width: 34px; }
+table.eventos td.datas { width: 190px; font-size: 0.78rem; color: #64748b; }
+table.eventos td.tipo { width: 165px; font-size: 0.78rem; color: #64748b; }
+table.eventos td.acoes { width: 120px; }
+table.eventos .faixa { display: block; white-space: nowrap; }
+
+code {
+  font-size: 0.82rem;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #1d4ed8;
+}
+
+/* ── Responsividade ─────────────────────────── */
+@media (max-width: 768px) {
+  #sidebar { width: 60px; }
+  #sidebar .sidebar-brand span,
+  #sidebar .nav-link span,
+  #sidebar .sidebar-footer { display: none !important; }
+  #sidebar .sidebar-brand { justify-content: center; padding-left: 0 !important; padding-right: 0 !important; }
+  #sidebar .nav-link { padding: 0.5rem; text-align: center; }
+  #sidebar .nav-link i { margin: 0 !important; font-size: 1.15rem; }
+  #sidebar.collapsed { width: var(--sidebar-width); }
+  #sidebar.collapsed .sidebar-brand span,
+  #sidebar.collapsed .nav-link span,
+  #sidebar.collapsed .sidebar-footer { display: inline !important; }
+  #sidebar.collapsed .nav-link { text-align: left; padding: 0.45rem 0.75rem; }
+  #sidebar.collapsed .nav-link i { margin-right: .5rem !important; }
+}
+
+/* ── Print ──────────────────────────────────── */
+@media print {
+  #sidebar, .topbar, .btn { display: none !important; }
+  #page-content { width: 100% !important; overflow: visible !important; }
+  .content-wrapper { padding: 0 !important; }
+  .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  html, body, #wrapper, #page-content, .content-wrapper {
+    min-height: 0 !important; height: auto !important;
+  }
+}
