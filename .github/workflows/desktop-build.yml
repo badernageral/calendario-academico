@@ -16,7 +16,7 @@ jobs:
     runs-on: windows-latest
 
     env:
-      PHP_ZIP: php-8.3.32-Win32-vs16-x64.zip
+      PHP_ZIP: php-8.3.33-Win32-vs16-x64.zip
 
     steps:
       - uses: actions/checkout@v4
@@ -41,9 +41,27 @@ jobs:
           if (-not $ok) { throw "Não consegui baixar o PHP ($env:PHP_ZIP)" }
           Expand-Archive php.zip -DestinationPath desktop/runtime/php -Force
           Copy-Item desktop/php.ini desktop/runtime/php/php.ini -Force
-          foreach ($dll in 'php_pdo_sqlite.dll', 'php_calendar.dll', 'php_mbstring.dll') {
-            if (-not (Test-Path "desktop/runtime/php/ext/$dll")) { throw "$dll ausente no pacote PHP" }
-          }
+
+      # Conferir pelo próprio PHP vale mais que procurar DLL: no Windows a
+      # extensão calendar — a da Páscoa, que baliza os feriados móveis — é
+      # compilada dentro do binário e não tem arquivo em ext/.
+      - name: Conferir o que a aplicação precisa
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $php = 'desktop/runtime/php/php.exe'
+          $ini = 'desktop/runtime/php/php.ini'
+          & $php -c $ini -r @"
+            `$faltando = array_filter(
+              ['pdo_sqlite' => extension_loaded('pdo_sqlite'),
+               'calendar (easter_date)' => function_exists('easter_date'),
+               'mbstring' => function_exists('mb_strtoupper')],
+              fn(`$ok) => !`$ok
+            );
+            if (`$faltando) { fwrite(STDERR, 'faltando: ' . implode(', ', array_keys(`$faltando)) . PHP_EOL); exit(1); }
+            echo 'PHP ' . PHP_VERSION . ' com pdo_sqlite, calendar e mbstring' . PHP_EOL;
+          "@
+          if ($LASTEXITCODE -ne 0) { throw "O PHP portátil não tem o que a aplicação precisa" }
 
       # ── Build do instalador ─────────────────────────────────────
       - name: Instalar dependências e empacotar

@@ -27,11 +27,11 @@ do próprio site.
 Garanta em `runtime/php/ext/`:
 
 - `php_pdo_sqlite.dll` — o banco;
-- `php_calendar.dll` — `easter_date()`, base dos feriados móveis;
 - `php_mbstring.dll` — acentuação.
 
 Copie também o `desktop/php.ini` para `runtime/php/php.ini`, que é quem habilita
-as três.
+as duas. A extensão **calendar** (`easter_date()`, base dos feriados móveis) não
+precisa de linha nem de DLL: no Windows ela vem compilada dentro do PHP.
 
 ## Rodar em desenvolvimento
 
