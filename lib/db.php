@@ -2,7 +2,11 @@
 declare(strict_types=1);
 
 const APP_ROOT = __DIR__ . '/..';
-const DB_PATH  = APP_ROOT . '/data/calendario.sqlite';
+
+// No Apache o banco fica em data/, dentro do site. No aplicativo desktop ele
+// precisa ficar fora da pasta de instalação, para sobreviver a uma atualização
+// — daí o caminho poder vir do ambiente.
+define('DB_PATH', getenv('CALENDARIO_DB') ?: APP_ROOT . '/data/calendario.sqlite');
 
 /** Teto da prioridade que o formulário de legenda aceita; acima ficam os feriados. */
 const PRIORIDADE_MAX = 95;

@@ -10,3 +10,9 @@ backups/*.sqlite
 # Python do importador da planilha.
 __pycache__/
 *.pyc
+
+# Empacotamento desktop: o PHP portátil e o resultado do build não vão para o
+# repositório — o workflow baixa um e gera o outro.
+desktop/node_modules/
+desktop/runtime/
+desktop/dist/

@@ -190,6 +190,9 @@ divergência.
     data/                   calendario.sqlite
     backups/                cópias geradas pela tela de Backup
     ferramentas/            importar_ods.py — migração da planilha antiga
+    desktop/                empacotamento Electron para Windows (main.js,
+                            router.php, php.ini e o ícone)
+    .github/workflows/      build do instalador no GitHub Actions
 
 ## Migrar de uma planilha .ods
 
@@ -199,9 +202,20 @@ Lê a planilha, cria os cursos, separa os eventos comuns às três abas em base
 comum e deixa o resto por curso. A classificação por cor é heurística: revise o
 resultado na tela antes de usar. Ajuste `ODS`, `DB` e `ANO` no topo do arquivo.
 
-## Empacotar como aplicativo desktop
+## Aplicativo desktop (Windows)
 
-O sistema não depende de servidor externo: SQLite em arquivo e nenhum recurso
-remoto. Para virar desktop, embute-se um PHP standalone servindo em `127.0.0.1`
-dentro de uma janela (Electron, Tauri ou similar), apontando `DB_PATH` para a
-pasta de dados do usuário.
+Além do Apache, o sistema roda como aplicativo instalável, **sem instalar PHP
+nem Apache na máquina**: o Electron sobe o servidor embutido do PHP em
+`127.0.0.1` dentro de uma janela. Nada muda no código das telas — é a mesma
+aplicação.
+
+O instalador é gerado pelo GitHub Actions (workflow *Build Desktop (Windows)*),
+que baixa o PHP portátil e empacota tudo. Ele roda quando se empurra uma tag
+`v*` — e aí o `.exe` fica anexado à Release — ou manualmente, pela aba Actions.
+Os detalhes estão em [`desktop/README.md`](desktop/README.md).
+
+**Onde ficam os dados nesse modo:** em `%APPDATA%\Calendario Academico\`, fora
+da pasta de instalação, para uma atualização não levar nada junto. Quem decide
+isso são as variáveis de ambiente `CALENDARIO_DB` e `CALENDARIO_BACKUPS`, que o
+`desktop/main.js` passa ao PHP; sem elas — no Apache — valem `data/` e
+`backups/` do próprio site.

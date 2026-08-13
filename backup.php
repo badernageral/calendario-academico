@@ -1,7 +1,9 @@
 <?php
 require __DIR__ . '/lib/boot.php';
 
-const DIR_BACKUPS = APP_ROOT . '/backups';
+// Mesma história do banco: no desktop as cópias vão para junto dele, fora da
+// pasta de instalação.
+define('DIR_BACKUPS', getenv('CALENDARIO_BACKUPS') ?: APP_ROOT . '/backups');
 
 /** Tabelas que todo banco desta aplicação tem — serve de conferência na importação. */
 const TABELAS_ESPERADAS = ['config', 'cursos', 'calendarios', 'categorias', 'eventos', 'evento_datas'];

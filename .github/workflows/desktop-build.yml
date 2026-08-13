@@ -1,0 +1,68 @@
+name: Build Desktop (Windows)
+
+# Gera o instalador Windows do Calendário Acadêmico sem você precisar de uma
+# máquina Windows. Dispare manualmente (aba Actions → Run workflow) ou
+# empurrando uma tag v*.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # necessário para anexar o .exe à Release (em tags)
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    env:
+      PHP_ZIP: php-8.3.32-Win32-vs16-x64.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ── PHP portátil (Thread Safe x64) ──────────────────────────
+      - name: Baixar e extrair o PHP portátil
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $urls = @(
+            "https://downloads.php.net/~windows/releases/$env:PHP_ZIP",
+            "https://downloads.php.net/~windows/releases/archives/$env:PHP_ZIP"
+          )
+          $ok = $false
+          foreach ($u in $urls) {
+            try { Invoke-WebRequest $u -OutFile php.zip; $ok = $true; break } catch { Write-Host "falhou: $u" }
+          }
+          if (-not $ok) { throw "Não consegui baixar o PHP ($env:PHP_ZIP)" }
+          Expand-Archive php.zip -DestinationPath desktop/runtime/php -Force
+          Copy-Item desktop/php.ini desktop/runtime/php/php.ini -Force
+          foreach ($dll in 'php_pdo_sqlite.dll', 'php_calendar.dll', 'php_mbstring.dll') {
+            if (-not (Test-Path "desktop/runtime/php/ext/$dll")) { throw "$dll ausente no pacote PHP" }
+          }
+
+      # ── Build do instalador ─────────────────────────────────────
+      - name: Instalar dependências e empacotar
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          npm install
+          npm run dist
+
+      - name: Publicar o instalador como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: Calendario-Academico-Windows
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+
+      # ── Em tags v*, anexa o .exe a uma Release ──────────────────
+      - name: Anexar à Release (somente em tags)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop/dist/*.exe

@@ -1,0 +1,57 @@
+{
+  "name": "calendario-academico-desktop",
+  "version": "1.0.0",
+  "description": "Calendário Acadêmico — empacotamento desktop para Windows",
+  "author": "IFTO",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "br.edu.ifto.calendario",
+    "productName": "Calendario Academico",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "package.json"],
+    "extraResources": [
+      { "from": "runtime", "to": "runtime" },
+      { "from": "router.php", "to": "router.php" },
+      { "from": "../", "to": "app", "filter": [
+        "**/*",
+        "!desktop/**",
+        "!backups/**",
+        "!.git/**",
+        "!.github/**",
+        "!**/node_modules/**",
+        "!**/__pycache__/**",
+        "!data/*.sqlite",
+        "!data/*.sqlite-wal",
+        "!data/*.sqlite-shm"
+      ] }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "guid": "3f1c8a24-5d7b-4e93-9a10-6c2b8e4f7d51",
+      "artifactName": "Calendario-Academico-Setup-${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "installerLanguages": ["pt_BR"],
+      "language": "1046"
+    }
+  }
+}
