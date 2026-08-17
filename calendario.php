@@ -15,8 +15,21 @@ if (!$cal) {
     flash('Calendário não encontrado.', 'erro');
     redirect('calendarios.php');
 }
-$ano        = (int) $cal['ano'];
-$voltarPara = 'calendario.php?id=' . $id;
+$ano = (int) $cal['ano'];
+
+// Caixas "Feriados" e "Eventos globais": filtro só de exibição da grade, que
+// nasce com as duas marcadas. Desmarcadas, sobra à vista o que é deste
+// calendário. Como caixa desmarcada não é enviada, "filtros=1" é a marca de que
+// a resposta veio do formulário — sem ela, é a primeira entrada na tela.
+$filtrou     = get('filtros') === '1';
+$verFeriados = !$filtrou || get('feriados') === '1';
+$verGlobais  = !$filtrou || get('globais') === '1';
+
+// Vai em toda volta ao calendário (salvar, cancelar, editar) para as caixas
+// continuarem como estavam.
+$voltarPara = 'calendario.php?id=' . $id
+    . '&filtros=1&feriados=' . ($verFeriados ? '1' : '0')
+    . '&globais=' . ($verGlobais ? '1' : '0');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     tratarPostEvento($db, $ano, $id, $voltarPara);
@@ -113,7 +126,11 @@ $diferenca = static function (int $total, int $meta): string {
 
 <?php $baseComum = false; $dataPadrao = $novaData; require __DIR__ . '/lib/form_evento.php'; ?>
 
-<?php require __DIR__ . '/lib/grade_calendario.php'; ?>
+<?php
+$gradeVerFeriados = $verFeriados;
+$gradeVerGlobais  = $verGlobais;
+require __DIR__ . '/lib/grade_calendario.php';
+?>
 
 <div class="card border-0 shadow-sm mb-4">
   <div class="card-header bg-transparent fw-semibold">

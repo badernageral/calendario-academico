@@ -11,6 +11,12 @@
  * Na tela de feriados, $gradeFeriados = true: a grade mostra só os feriados e
  * tudo aponta para o cadastro deles.
  *
+ * $gradeVerFeriados e $gradeVerGlobais (ambos true quando a página não diz
+ * nada) são as caixas da tela do calendário: escondem da grade os feriados e
+ * os eventos globais, deixando à vista só o que é daquele calendário. É filtro
+ * de exibição — o dia continua letivo ou não pelo que o motor calculou, então
+ * as contagens não mudam ao desmarcar.
+ *
  * Todas as variáveis daqui usam o prefixo g_ de propósito: este arquivo roda
  * no mesmo escopo da página, e nomes curtos como $ev ou $cats atropelariam os
  * do formulário e da lista de eventos, que são incluídos logo depois.
@@ -19,8 +25,22 @@
 $g_feriados = !empty($gradeFeriados);
 $g_global   = !empty($gradeGlobal) || $g_feriados;   // as duas telas são de um ano, sem curso
 $g_url      = $g_feriados ? 'feriados.php?ano=' . $ano . '&'
-            : ($g_global ? 'eventos.php?ano=' . $ano . '&' : 'calendario.php?id=' . $id . '&');
+            : ($g_global ? 'eventos.php?ano=' . $ano . '&' : $voltarPara . '&');
 $g_coisa    = $g_feriados ? 'feriado' : 'evento';
+
+// Quem está à vista. As duas telas de ano não passam nada, então lá isto é
+// sempre true, nada é escondido e as caixas nem aparecem no cabeçalho.
+$g_verFeriados = !isset($gradeVerFeriados) || $gradeVerFeriados;
+$g_verGlobais  = !isset($gradeVerGlobais)  || $gradeVerGlobais;
+$g_filtravel   = !$g_global && isset($gradeVerFeriados, $gradeVerGlobais);
+
+/** Feriado vem antes de global: no calendário ele também é calendario_id null. */
+$g_visivel = static function (array $ev) use ($g_verFeriados, $g_verGlobais): bool {
+    if (isset($ev['feriado_id'])) {
+        return $g_verFeriados;
+    }
+    return $ev['calendario_id'] !== null || $g_verGlobais;
+};
 
 $g_cats = $eng->categorias();
 
@@ -30,8 +50,13 @@ $g_legenda = array_filter($g_cats, static fn ($c) => (int) $c['na_legenda'] === 
     && (!$g_feriados || str_starts_with($c['nome'], 'Feriado') || $c['nome'] === 'Ponto Facultativo'));
 uasort($g_legenda, static fn ($a, $b) => [(int) $a['ordem'], $a['nome']] <=> [(int) $b['ordem'], $b['nome']]);
 
-/** Tudo o que o modal precisa saber, por dia. Vai para o JS como JSON. */
-$g_dias = [];
+/**
+ * Tudo o que o modal precisa saber, por dia. Vai para o JS como JSON. Junto sai
+ * $g_pinta: a cor da célula recalculada só com os eventos à vista, para a grade
+ * não ficar pintada por um evento que as caixas mandaram esconder.
+ */
+$g_dias  = [];
+$g_pinta = [];
 foreach (array_keys(Engine::MESES) as $g_mes) {
     foreach ($eng->semanas($g_mes) as $g_semana) {
         foreach ($g_semana as $g_iso) {
@@ -40,11 +65,13 @@ foreach (array_keys(Engine::MESES) as $g_mes) {
             }
             $g_dia = $eng->dia($g_iso);
             $g_eventos = [];
+            $g_chaves  = [];
             foreach ($g_dia['eventos'] as $g_eid) {
                 $g_ev = $eng->eventos()[$g_eid] ?? null;
-                if (!$g_ev) {
+                if (!$g_ev || !$g_visivel($g_ev)) {
                     continue;
                 }
+                $g_chaves[] = $g_eid;
                 $g_cat = $g_ev['categoria_id'] !== null ? ($g_cats[(int) $g_ev['categoria_id']] ?? null) : null;
                 $g_eventos[] = [
                     'id'      => $g_ev['id'] === null ? null : (int) $g_ev['id'],
@@ -55,21 +82,22 @@ foreach (array_keys(Engine::MESES) as $g_mes) {
                     'feriado' => $g_ev['feriado_id'] ?? null,   // id do cadastro, quando é feriado
                 ];
             }
+            $g_pinta[$g_iso] = $eng->categoriaEntre($g_chaves);
             $g_dias[$g_iso] = [
                 'letivo'  => (bool) $g_dia['letivo'],
-                'cat'     => $g_dia['categoria']['nome'] ?? null,
+                'cat'     => $g_pinta[$g_iso]['nome'] ?? null,
                 'eventos' => $g_eventos,
             ];
         }
     }
 }
-unset($g_mes, $g_semana, $g_iso, $g_dia, $g_eventos, $g_eid, $g_ev, $g_cat);
+unset($g_mes, $g_semana, $g_iso, $g_dia, $g_eventos, $g_chaves, $g_eid, $g_ev, $g_cat);
 
 /** Eventos por mês do primeiro dia, na mesma ordem da impressão. */
 $g_porMes = [];
 foreach ($eng->eventos() as $g_ev) {
     $g_ini = $g_ev['datas'][0]['inicio'];
-    if ((int) substr($g_ini, 0, 4) !== (int) $ano) {
+    if ((int) substr($g_ini, 0, 4) !== (int) $ano || !$g_visivel($g_ev)) {
         continue;
     }
     $g_porMes[(int) substr($g_ini, 5, 2)][] = ['ini' => $g_ini, 'ev' => $g_ev];
@@ -89,12 +117,32 @@ unset($g_lista, $g_ev, $g_ini);
 }
 </style>
 <div class="card border-0 shadow-sm mb-4">
-  <div class="card-header bg-transparent fw-semibold d-flex justify-content-between align-items-center">
+  <div class="card-header bg-transparent fw-semibold d-flex flex-wrap justify-content-between align-items-center gap-2">
     <span><i class="bi bi-grid-3x3 me-2 text-primary"></i><?php
       echo $g_feriados ? 'Feriados em ' : ($g_global ? 'Eventos globais de ' : 'Calendário de '); ?><?= (int) $ano ?></span>
-    <span class="small text-muted d-none d-md-inline">
-      Clique em um dia para ver e alterar os <?= $g_coisa ?>s
-    </span>
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <?php if ($g_filtravel): ?>
+      <form method="get" class="d-flex align-items-center gap-3 fw-normal"
+            title="Filtro de exibição: os dias letivos continuam contando com tudo">
+        <input type="hidden" name="id" value="<?= (int) $id ?>">
+        <input type="hidden" name="filtros" value="1">
+        <span class="small text-muted">Exibir:</span>
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" name="feriados" value="1" id="verFeriados"
+                 <?= $g_verFeriados ? 'checked' : '' ?> onchange="this.form.submit()">
+          <label class="form-check-label small" for="verFeriados">Feriados</label>
+        </div>
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" name="globais" value="1" id="verGlobais"
+                 <?= $g_verGlobais ? 'checked' : '' ?> onchange="this.form.submit()">
+          <label class="form-check-label small" for="verGlobais">Eventos globais</label>
+        </div>
+      </form>
+      <?php endif; ?>
+      <span class="small text-muted d-none d-md-inline">
+        Clique em um dia para ver e alterar os <?= $g_coisa ?>s
+      </span>
+    </div>
   </div>
   <div class="card-body">
     <div class="d-flex flex-wrap gap-3 mb-3 pb-3 border-bottom legenda-grade">
@@ -125,7 +173,7 @@ unset($g_lista, $g_ev, $g_ini);
                     continue;
                 }
                 $g_dia  = $eng->dia($g_iso);
-                $g_cat  = $g_dia['categoria'];
+                $g_cat  = $g_pinta[$g_iso];
                 $g_est  = $g_cat ? 'background:' . e($g_cat['cor']) . ';color:' . e($g_cat['cor_texto']) . ';' : '';
                 $g_tem  = $g_dias[$g_iso]['eventos'] !== [];
                 $g_tit  = $g_tem

@@ -328,6 +328,33 @@ final class Engine
         return $this->dias[$iso] ?? null;
     }
 
+    /**
+     * A categoria que pintaria o dia levando em conta só parte dos eventos
+     * dele — a mesma regra do passo 2 de montarDias(), a maior prioridade
+     * entre quem pinta. Serve às caixas "mostrar feriados/globais" da tela do
+     * calendário, que escondem eventos da grade sem mexer na contagem de dias
+     * letivos, que continua valendo pelo calendário inteiro.
+     *
+     * @param array $chaves chaves de eventos(), como vêm de dia()['eventos']
+     */
+    public function categoriaEntre(array $chaves): ?array
+    {
+        $cat  = null;
+        $prio = PHP_INT_MIN;
+        foreach ($chaves as $chave) {
+            $ev = $this->eventos[$chave] ?? null;
+            if (!$ev || $ev['categoria_id'] === null || (int) $ev['pinta_dias'] !== 1) {
+                continue;
+            }
+            $c = $this->categorias[(int) $ev['categoria_id']] ?? null;
+            if ($c && (int) $c['prioridade'] > $prio) {
+                $prio = (int) $c['prioridade'];
+                $cat  = $c;
+            }
+        }
+        return $cat;
+    }
+
     public function semestres(): array
     {
         return $this->semestres;
