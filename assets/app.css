@@ -299,6 +299,20 @@ code {
   #sidebar.collapsed .nav-link i { margin-right: .5rem !important; }
 }
 
+/* ── Modal com <form> envolvendo header/body/footer ──
+   O Bootstrap espera esses três como filhos diretos do flex column de
+   .modal-content para o scroll interno de .modal-dialog-scrollable
+   funcionar. Nossos formulários de modal ficam dentro de um <form> (o
+   botão de enviar precisa estar dentro dele), o que quebra essa cadeia:
+   sem isto, em telas baixas o rodapé (com o botão de salvar) fica cortado
+   para fora da modal, sem barra de rolagem. */
+.modal-dialog-scrollable .modal-content > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* ── Print ──────────────────────────────────── */
 @media print {
   #sidebar, .topbar, .btn { display: none !important; }
