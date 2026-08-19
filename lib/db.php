@@ -273,8 +273,8 @@ function cfgPadroes(): array
 {
     return [
         'orgao'          => "MINISTÉRIO DA EDUCAÇÃO\nSECRETARIA DE EDUCAÇÃO PROFISSIONAL E TECNOLÓGICA\nINSTITUTO FEDERAL DE EDUCAÇÃO, CIÊNCIA E TECNOLOGIA DO TOCANTINS",
-        'campus'         => 'CAMPUS LAGOA DA CONFUSÃO',
-        'cidade'         => 'Lagoa da Confusão',
+        'campus'         => 'CAMPUS MIDGARD',
+        'cidade'         => 'Midgard',
         'titulo_modelo'  => 'CALENDÁRIO DO CURSO {curso} {ano}',
         'situacao'       => 'Aguardando homologação',
         'meta_letivos'   => '100',
