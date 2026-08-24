@@ -34,6 +34,38 @@ O Apache (`www-data`) precisa escrever em `data/` e em `backups/`:
 As duas pastas ficam dentro da raiz do site, então cada uma tem um `.htaccess`
 com `Require all denied` — sem ele, o banco seria baixável pela URL.
 
+**O `.htaccess` só vale se o Apache aceitar.** A configuração precisa ter
+`AllowOverride All` no diretório que contém o site; com `AllowOverride None` —
+que é como o Debian e o Ubuntu entregam `/var/www/` — os arquivos são
+simplesmente ignorados, e `data/calendario.sqlite` volta a ser baixável pela
+URL. Vale conferir depois de instalar:
+
+    curl -so /dev/null -w '%{http_code}\n' http://localhost/calendario-academico/data/calendario.sqlite
+
+O esperado é `403`. Se vier `200`, o banco inteiro está aberto: ajuste o
+`AllowOverride` ou tire `data/` e `backups/` da raiz do site, apontando
+`CALENDARIO_DB` e `CALENDARIO_BACKUPS` para fora dela.
+
+### Quem pode usar
+
+**O sistema não tem login: quem alcança a URL faz tudo.** Cadastra, altera,
+exclui, baixa o banco inteiro pela tela de Backup e, pela mesma tela, substitui
+todos os dados por um arquivo enviado. É uma decisão de escopo — um campus, um
+punhado de pessoas montando o calendário do ano —, não um esquecimento; mas ela
+transfere a segurança inteira para a rede.
+
+Então o Apache **não pode estar exposto à internet**. Sirva o sistema só na rede
+interna, ou ponha algo na frente: um `Require ip` no virtual host, uma
+autenticação básica do próprio Apache (`AuthType Basic`), ou uma VPN. No modo
+desktop nada disso se aplica — ali o PHP escuta em `127.0.0.1` e só a máquina
+local alcança.
+
+O que o sistema faz por conta própria é impedir que **outra** página aberta no
+mesmo navegador dispare uma ação aqui dentro: todo formulário leva um token de
+sessão, conferido em `lib/boot.php` antes de qualquer tela olhar para o POST.
+Isso protege contra o pedido forjado de fora, não contra quem simplesmente abre
+a URL — para esse, a barreira é a rede.
+
 ### Extensões do PHP
 
 Bastam `pdo_sqlite` e `calendar` (para os feriados móveis). `mbstring` é
@@ -54,7 +86,15 @@ Instalar `php-mbstring` é recomendado, mas não obrigatório.
    distância até o domingo de Páscoa, e o sistema calcula a data de cada ano
    (Carnaval `-48` e `-47`, Quarta-feira de Cinzas `-46`, Sexta-feira da Paixão
    `-2`, Corpus Christi `60`). O sistema já vem com os nacionais, os estaduais
-   do Tocantins, os pontos facultativos federais e os municipais do campus.
+   do Tocantins e os pontos facultativos federais — o que vale igual em todo
+   campus. Os **municipais não vêm**, porque mudam de cidade para cidade: cada
+   campus cadastra os seus aqui, na categoria *Feriado Municipal*, que já vem
+   criada. É o primeiro cadastro a fazer numa instalação nova.
+   O que também **não** entra aqui são as **emendas** — a segunda antes de um
+   feriado de terça, a sexta depois de Corpus Christi. Elas não são regra: a
+   portaria anual do MGI as declara ano a ano, sem nome e sem data fixa (em
+   2026, 20/4 e 5/6). O lugar delas é *Eventos globais*, com a categoria *Ponto
+   Facultativo*, um ano de cada vez.
    Corrigir um feriado conserta todos os anos de uma vez, e desmarcar *Ativo*
    tira o feriado de circulação sem apagar o cadastro. Os feriados aparecem na
    grade e na lista de cada mês com a marca *feriado*; eles não são eventos,
@@ -190,9 +230,21 @@ divergência.
     data/                   calendario.sqlite
     backups/                cópias geradas pela tela de Backup
     ferramentas/            importar_ods.py — migração da planilha antiga
+    testes/                 executar.php — a suíte do motor
     desktop/                empacotamento Electron para Windows (main.js,
                             router.php, php.ini e o ícone)
-    .github/workflows/      build do instalador no GitHub Actions
+    .github/workflows/      build do instalador e a suíte no GitHub Actions
+
+## Testes
+
+    php testes/executar.php
+
+Cobrem o motor — a única parte do sistema que decide alguma coisa sozinha: a
+contagem de dias letivos, a precedência entre categorias, o feriado que derruba
+o sábado letivo, os feriados móveis, o alcance por nível de ensino e os rótulos
+de data que saem no papel. Cada teste monta o cenário num banco temporário,
+criado do próprio `schema.sql` com o seed de fábrica; a base do site não é
+tocada. O GitHub Actions roda a suíte e um `php -l` em todo arquivo a cada push.
 
 ## Migrar de uma planilha .ods
 

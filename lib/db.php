@@ -173,7 +173,14 @@ function aplicarCategoriasFixas(PDO $pdo): void
              . ' WHERE protegida = 0 AND prioridade > ' . PRIORIDADE_MAX);
 }
 
-/** Feriados de fábrica: nacionais, estaduais do Tocantins e pontos facultativos federais. */
+/**
+ * Feriados de fábrica: nacionais, estaduais do Tocantins e pontos facultativos
+ * federais — o que vale igual em todo campus do IFTO.
+ *
+ * Municipais não entram de propósito: mudam de cidade para cidade, e cada
+ * campus cadastra os seus na tela de Feriados. A categoria *Feriado Municipal*
+ * já vem criada, esperando por eles.
+ */
 function semearFeriados(PDO $pdo): void
 {
     // nome, tipo, dia, mes, deslocamento, categoria
@@ -197,10 +204,14 @@ function semearFeriados(PDO $pdo): void
         ['Carnaval',                                            'movel', null, null, -47, 'Ponto Facultativo'],
         ['Quarta-feira de Cinzas (até às 14 horas)',            'movel', null, null, -46, 'Ponto Facultativo'],
         ['Corpus Christi',                                      'movel', null, null,  60, 'Ponto Facultativo'],
-        ['Dia do Servidor Público',                             'fixo',  28, 10, null, 'Ponto Facultativo'],
-        ['Véspera do Natal (após as 14 horas)',                 'fixo',  24, 12, null, 'Ponto Facultativo'],
-        ['Véspera do Ano Novo (após as 14 horas)',              'fixo',  31, 12, null, 'Ponto Facultativo'],
+        ['Dia do Servidor Público federal',                     'fixo',  28, 10, null, 'Ponto Facultativo'],
+        ['Véspera do Natal (após as 13 horas)',                 'fixo',  24, 12, null, 'Ponto Facultativo'],
+        ['Véspera do Ano Novo (após as 13 horas)',              'fixo',  31, 12, null, 'Ponto Facultativo'],
     ];
+    // As emendas — a segunda antes de um feriado de terça, a sexta depois de
+    // Corpus Christi — não entram aqui: a portaria anual do MGI as declara ano
+    // a ano, sem nome e sem regra fixa, e este cadastro é de regras perenes.
+    // Em 2026 são 20/4 e 5/6; o lugar delas é Eventos globais do ano.
     $st = $pdo->prepare(
         'INSERT INTO feriados (nome, tipo, dia, mes, deslocamento, categoria_id)
          VALUES (?,?,?,?,?, (SELECT id FROM categorias WHERE nome = ?))'
