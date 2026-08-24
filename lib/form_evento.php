@@ -278,9 +278,30 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
       b.textContent = d;
       b.dataset.data = data;
       if (emFaixa(data)) { b.classList.add('escolhido'); }
-      if (inicioPendente === data) { b.classList.add('inicio'); }
-      if (inicioPendente && sobre && dentro(data, inicioPendente, sobre)) { b.classList.add('previa'); }
       caixaDias.appendChild(b);
+    }
+    pintarPendente();
+  }
+
+  /**
+   * A marca do início e o sombreado da prévia, aplicados nos botões que já
+   * estão na tela.
+   *
+   * Isto existe separado de desenhar() por um motivo específico: o sombreado
+   * acompanha o mouse, e desenhar() recria a grade inteira. Um mouseover entre
+   * o mousedown e o mouseup destruía o botão em que o dedo tinha descido, e o
+   * navegador só emite "click" quando os dois caem no mesmo elemento — então o
+   * segundo clique simplesmente não acontecia, e a faixa nunca fechava. Era
+   * intermitente: bastava a mão tremer um pixel entre um dia e outro. No
+   * Electron do modo desktop acontecia toda vez.
+   */
+  function pintarPendente() {
+    var botoes = caixaDias.querySelectorAll('.dia-seletor');
+    for (var i = 0; i < botoes.length; i++) {
+      var data = botoes[i].dataset.data;
+      botoes[i].classList.toggle('inicio', inicioPendente === data);
+      botoes[i].classList.toggle('previa',
+        !!(inicioPendente && sobre && dentro(data, inicioPendente, sobre)));
     }
   }
 
@@ -291,22 +312,25 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
 
     if (!inicioPendente) {
       inicioPendente = data;
+      sobre = data;
       dica.textContent = 'Agora clique no último dia do período.';
-    } else {
-      var a = inicioPendente, b = data;
-      faixas.push({ inicio: a < b ? a : b, fim: a < b ? b : a });
-      faixas.sort(function (x, y) { return x.inicio < y.inicio ? -1 : 1; });
-      inicioPendente = null;
-      sobre = null;
-      dica.textContent = 'Clique no primeiro dia e depois no último.';
-      sincronizar();
+      pintarPendente();   // a grade fica de pé: o próximo clique precisa dela
+      return;
     }
-    desenhar();
+
+    var a = inicioPendente, b = data;
+    faixas.push({ inicio: a < b ? a : b, fim: a < b ? b : a });
+    faixas.sort(function (x, y) { return x.inicio < y.inicio ? -1 : 1; });
+    inicioPendente = null;
+    sobre = null;
+    dica.textContent = 'Clique no primeiro dia e depois no último.';
+    sincronizar();
+    desenhar();   // a faixa fechou: aqui a grade pode ser refeita à vontade
   });
 
   caixaDias.addEventListener('mouseover', function (ev) {
     var alvo = ev.target.closest('.dia-seletor');
-    if (alvo && inicioPendente) { sobre = alvo.dataset.data; desenhar(); }
+    if (alvo && inicioPendente) { sobre = alvo.dataset.data; pintarPendente(); }
   });
 
   seletor.addEventListener('click', function (ev) {
