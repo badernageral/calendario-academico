@@ -89,7 +89,8 @@ Instalar `php-mbstring` é recomendado, mas não obrigatório.
    do Tocantins e os pontos facultativos federais — o que vale igual em todo
    campus. Os **municipais não vêm**, porque mudam de cidade para cidade: cada
    campus cadastra os seus aqui, na categoria *Feriado Municipal*, que já vem
-   criada. É o primeiro cadastro a fazer numa instalação nova.
+   criada. Junto com *campus* e *cidade* em **Configurações**, é o que uma
+   instalação nova pede antes de qualquer outra coisa.
    O que também **não** entra aqui são as **emendas** — a segunda antes de um
    feriado de terça, a sexta depois de Corpus Christi. Elas não são regra: a
    portaria anual do MGI as declara ano a ano, sem nome e sem data fixa (em
@@ -147,7 +148,13 @@ Instalar `php-mbstring` é recomendado, mas não obrigatório.
    novo* (situação e meta de dias letivos por semestre, que cada calendário
    ajusta depois) e *Cores fixas do calendário* (dias de segunda a sexta, sábados
    e domingos, faixa do nome do mês e cabeçalho dos dias úteis). O fuso horário
-   é fixo em `America/Araguaina`, em `lib/boot.php`.
+   é fixo em `America/Araguaina`, em `lib/boot.php` — o IFTO inteiro fica no
+   Tocantins.
+   **Numa instalação nova, *campus* e *cidade* vêm como `CAMPUS MIDGARD` e
+   `Midgard`** — valores de exemplo, e a primeira coisa a trocar. O órgão já vem
+   certo, porque é o mesmo em todo o IFTO; o campus, não, e ele sai impresso no
+   cabeçalho do documento. Troque antes de gerar o primeiro calendário: ninguém
+   quer descobrir o campus errado num calendário já homologado.
 9. **Backup** — *Baixar backup agora* gera uma cópia consistente do banco
    (`VACUUM INTO`, que já incorpora o WAL), guarda em `backups/` e baixa o
    arquivo. *Importar* faz o caminho inverso: **substitui todos os dados** pelo

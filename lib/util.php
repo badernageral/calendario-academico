@@ -208,6 +208,18 @@ function dataBr(?string $iso): string
     return $iso ? implode('/', array_reverse(explode('-', $iso))) : '';
 }
 
+/**
+ * O "local e data" com que um calendário novo abre: "Lagoa da Confusão,
+ * agosto de 2026". Enquanto a cidade não estiver configurada sai só o mês e o
+ * ano, em vez de uma vírgula solta no começo da linha.
+ */
+function localEData(): string
+{
+    $quando = mesExtenso((int) date('n')) . ' de ' . date('Y');
+    $cidade = cfg('cidade');
+    return $cidade === '' ? $quando : $cidade . ', ' . $quando;
+}
+
 function mesExtenso(int $m): string
 {
     return ['', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',

@@ -283,6 +283,10 @@ function seed(PDO $pdo): void
 function cfgPadroes(): array
 {
     return [
+        // O órgão é o mesmo em todo o IFTO, então vem pronto. O campus e a
+        // cidade são de exemplo: cada instalação troca os dois em Configurações
+        // antes de gerar o primeiro calendário, porque é este par que sai no
+        // cabeçalho impresso.
         'orgao'          => "MINISTÉRIO DA EDUCAÇÃO\nSECRETARIA DE EDUCAÇÃO PROFISSIONAL E TECNOLÓGICA\nINSTITUTO FEDERAL DE EDUCAÇÃO, CIÊNCIA E TECNOLOGIA DO TOCANTINS",
         'campus'         => 'CAMPUS MIDGARD',
         'cidade'         => 'Midgard',

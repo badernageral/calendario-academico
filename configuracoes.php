@@ -70,7 +70,7 @@ head('Configurações', 'configuracoes');
         <div class="col-md-5">
           <label class="form-label">Cidade</label>
           <input name="cidade" class="form-control" value="<?= e(cfg('cidade')) ?>">
-          <div class="form-text">Abre o “local e data” de um calendário novo: <em><?= e(cfg('cidade')) ?>, <?= e(mesExtenso((int) date('n'))) ?> de <?= date('Y') ?></em>.</div>
+          <div class="form-text">Abre o “local e data” de um calendário novo: <em><?= e(localEData()) ?></em>.</div>
         </div>
       </div>
     </div>

@@ -210,7 +210,7 @@ head('Calendários', 'calendarios');
             </div>
             <div class="col-12">
               <label class="form-label">Local e data</label>
-              <input name="local_texto" class="form-control" value="<?= e(cfg('cidade')) ?>, <?= e(mesExtenso((int) date('n'))) ?> de <?= date('Y') ?>">
+              <input name="local_texto" class="form-control" value="<?= e(localEData()) ?>">
             </div>
 
             <div class="col-12"><hr class="my-1"></div>
