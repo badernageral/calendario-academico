@@ -160,6 +160,7 @@ head('Calendários', 'calendarios');
               <a class="btn btn-sm btn-outline-primary" href="calendario.php?id=<?= $c['id'] ?>" title="Grade e eventos"><i class="bi bi-grid-3x3 me-1"></i>Gerenciar</a>
               <a class="btn btn-sm btn-outline-dark" href="gerar.php?id=<?= $c['id'] ?>" target="_blank"><i class="bi bi-printer me-1"></i>Gerar</a>
               <form method="post" class="d-inline" onsubmit="return confirm('Excluir o calendário e todos os seus eventos?')">
+                <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="id" value="<?= $c['id'] ?>">
                 <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
@@ -178,6 +179,7 @@ head('Calendários', 'calendarios');
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <form method="post">
+        <?= csrfCampo() ?>
         <div class="modal-header">
           <h5 class="modal-title" id="tituloModalCalendario">
             <i class="bi bi-calendar-plus me-2 text-primary"></i>Novo calendário

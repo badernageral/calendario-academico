@@ -227,6 +227,7 @@ unset($g_lista, $g_ev, $g_ini);
               </a>
               <?php if (!$g_feriado && ($g_global || !$g_base)): ?>
               <form method="post" onsubmit="return confirm('Excluir este evento?')">
+                <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir_evento">
                 <input type="hidden" name="id" value="<?= (int) $g_ev['id'] ?>">
                 <button class="apagar" title="Excluir"><i class="bi bi-x-lg"></i></button>
@@ -295,7 +296,7 @@ unset($g_lista, $g_ev, $g_ini);
         // Feriado não se edita como evento: o lápis leva ao cadastro dele.
         var url = e.feriado ? 'feriados.php?editar=' + e.feriado : URL + 'editar_evento=' + e.id;
         html += '<li class="list-group-item d-flex align-items-start gap-2 px-0">' +
-          '<span class="amostra mt-1" style="background:' + (e.cor || 'transparent') + '"></span>' +
+          '<span class="amostra mt-1" style="background:' + esc(e.cor || 'transparent') + '"></span>' +
           '<span class="flex-grow-1"><span class="d-block">' + esc(e.desc) + '</span>' +
           '<small class="text-muted">' + esc(e.cat || 'sem categoria') +
           (e.feriado && !<?= $g_feriados ? 'true' : 'false' ?> ? ' · <span class="badge bg-light text-secondary border">feriado</span>' : '') +

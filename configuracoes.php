@@ -14,12 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
     // passar, mas avisa, porque quase sempre é engano.
     $modelo = post('titulo_modelo') !== '' ? post('titulo_modelo') : cfgPadroes()['titulo_modelo'];
 
-    // As cores vêm de <input type="color">, que só manda #rrggbb — mas um POST
-    // à mão poderia mandar qualquer coisa dentro de um style.
-    $cor = static function (string $campo) : string {
-        $v = post($campo);
-        return preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? strtolower($v) : cfgPadroes()[$campo];
-    };
+    // Cor que não seja #rrggbb cai no padrão de fábrica — a peneira está em
+    // postCor(), a mesma que a tela de legenda usa.
+    $cor = static fn (string $campo): string => postCor($campo, cfgPadroes()[$campo]);
 
     $valores = [
         'orgao'         => post('orgao'),
@@ -51,6 +48,7 @@ $tituloAmostra = strtr(cfg('titulo_modelo'), ['{curso}' => $cursoAmostra, '{ano}
 head('Configurações', 'configuracoes');
 ?>
 <form method="post">
+  <?= csrfCampo() ?>
   <input type="hidden" name="acao" value="salvar">
 
   <div class="card border-0 shadow-sm mb-3">

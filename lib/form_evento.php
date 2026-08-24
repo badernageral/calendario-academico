@@ -29,6 +29,7 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
         </div>
 
         <div class="modal-body">
+          <?= csrfCampo() ?>
           <input type="hidden" name="acao" value="salvar_evento">
           <input type="hidden" name="id" value="<?= (int) ($ev['id'] ?? 0) ?>">
           <?php if (!$baseComum): ?>

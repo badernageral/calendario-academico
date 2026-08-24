@@ -32,6 +32,17 @@ function postInt(string $k, ?int $padrao = null): ?int
     return $v === '' ? $padrao : (int) $v;
 }
 
+/**
+ * Cor de um <input type="color">, que só manda #rrggbb — mas um POST à mão
+ * poderia mandar qualquer coisa, e daqui ela sai direto para dentro de um
+ * `style`. O que não casa com #rrggbb vira o padrão.
+ */
+function postCor(string $k, string $padrao): string
+{
+    $v = post($k);
+    return preg_match('/^#[0-9a-fA-F]{6}$/', $v) === 1 ? strtolower($v) : $padrao;
+}
+
 function get(string $k, string $padrao = ''): string
 {
     return trim((string) ($_GET[$k] ?? $padrao));
@@ -48,11 +59,79 @@ function redirect(string $url): never
     exit;
 }
 
-function flash(?string $msg = null, string $tipo = 'ok'): ?array
+/** A sessão guarda o aviso de uma tela para a outra e o token dos formulários. */
+function sessao(): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
         session_start();
     }
+}
+
+/**
+ * Token que amarra um formulário a esta sessão. Nasce uma vez e vale enquanto
+ * ela durar: trocá-lo a cada tela derrubaria a página deixada aberta em outra
+ * aba.
+ */
+function csrfToken(): string
+{
+    sessao();
+    if (empty($_SESSION['csrf'])) {
+        $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf'];
+}
+
+/** O campo escondido que todo formulário POST leva. */
+function csrfCampo(): string
+{
+    return '<input type="hidden" name="_csrf" value="' . e(csrfToken()) . '">';
+}
+
+/**
+ * Confere o token antes de a tela olhar para o POST. Como o sistema não tem
+ * login, é isto que impede outra página aberta no mesmo navegador de disparar
+ * uma exclusão ou uma importação de backup aqui dentro.
+ *
+ * Não devolve nada: ou o pedido é legítimo, ou a requisição para aqui. Quem
+ * chama é o boot, uma vez, para nenhuma tela poder esquecer.
+ */
+function csrfConferir(): void
+{
+    // Na linha de comando (a suíte de testes) não há requisição nenhuma.
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        return;
+    }
+
+    // POST maior que post_max_size chega com $_POST vazio e sem aviso nenhum —
+    // o caminho provável é a importação de um banco grande. Sem esta linha, o
+    // usuário levaria a culpa do token no lugar da mensagem certa.
+    if ($_POST === [] && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        pararCom('O envio passou do limite do servidor (post_max_size = '
+               . ini_get('post_max_size') . '). Suba o limite no php.ini para importar este arquivo.');
+    }
+
+    $enviado = (string) ($_POST['_csrf'] ?? '');
+    if ($enviado === '' || !hash_equals(csrfToken(), $enviado)) {
+        pararCom('Este formulário não confere com a sua sessão. Volte, recarregue a página e tente de novo.');
+    }
+}
+
+/** Página curta de fim de linha: o pedido não vai ser atendido, e explica por quê. */
+function pararCom(string $motivo): never
+{
+    http_response_code(400);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!doctype html><html lang="pt-BR"><meta charset="utf-8">'
+       . '<title>Pedido recusado · Calendário Acadêmico</title>'
+       . '<body style="font-family:system-ui,sans-serif;max-width:34rem;margin:4rem auto;padding:0 1rem">'
+       . '<h1 style="font-size:1.25rem">Pedido recusado</h1><p>' . e($motivo) . '</p>'
+       . '<p><a href="index.php">Voltar ao painel</a></p>';
+    exit;
+}
+
+function flash(?string $msg = null, string $tipo = 'ok'): ?array
+{
+    sessao();
     if ($msg !== null) {
         $_SESSION['flash'] = ['msg' => $msg, 'tipo' => $tipo];
         return null;

@@ -67,6 +67,7 @@ head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
   </div>
   <div class="card-body">
     <form method="post" class="row g-3">
+      <?= csrfCampo() ?>
       <input type="hidden" name="acao" value="salvar_cal">
       <input type="hidden" name="cal_id" value="<?= $id ?>">
       <div class="col-12">

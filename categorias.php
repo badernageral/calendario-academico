@@ -22,10 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? (int) $atual['prioridade']
             : max(1, min(PRIORIDADE_MAX, postInt('prioridade', 50)));
 
+        // A cor sai daqui para dentro de um `style` na grade e na impressão:
+        // o que não for #rrggbb não entra no banco.
         $dados = [
             post('nome'),
-            post('cor', '#ffffff'),
-            post('cor_texto', '#000000'),
+            postCor('cor', '#ffffff'),
+            postCor('cor_texto', '#000000'),
             $letivo === '' ? null : (int) $letivo,
             $prioridade,
             isset($_POST['na_legenda']) ? 1 : 0,
@@ -120,6 +122,7 @@ head('Legenda', 'categorias');
               <a class="btn btn-sm btn-outline-primary" href="categorias.php?editar=<?= $c['id'] ?>"><i class="bi bi-pencil me-1"></i>Editar</a>
               <?php if ((int) $c['protegida'] === 0): ?>
               <form method="post" class="d-inline" onsubmit="return confirm('Excluir esta categoria?')">
+                <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="id" value="<?= $c['id'] ?>">
                 <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
@@ -138,6 +141,7 @@ head('Legenda', 'categorias');
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <form method="post">
+        <?= csrfCampo() ?>
         <div class="modal-header">
           <h5 class="modal-title" id="tituloModalCategoria">
             <i class="bi bi-palette me-2 text-primary"></i><?= $edit ? 'Editando: ' . e($edit['nome']) : 'Nova categoria' ?>

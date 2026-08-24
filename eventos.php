@@ -91,6 +91,7 @@ head('Eventos globais', 'base');
 
     <?php if ($origens): ?>
     <form method="post" class="d-flex align-items-end gap-2">
+      <?= csrfCampo() ?>
       <input type="hidden" name="acao" value="copiar_ano">
       <input type="hidden" name="ano" value="<?= $ano ?>">
       <div>
@@ -111,6 +112,7 @@ head('Eventos globais', 'base');
     <?php if ($total): ?>
     <form method="post"
           onsubmit="return confirm('Excluir os <?= $total ?> eventos globais de <?= $ano ?>? Os eventos próprios dos calendários não são tocados.')">
+      <?= csrfCampo() ?>
       <input type="hidden" name="acao" value="limpar_ano">
       <input type="hidden" name="ano" value="<?= $ano ?>">
       <button class="btn btn-sm btn-outline-danger" title="Apaga só os eventos globais deste ano">

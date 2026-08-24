@@ -84,6 +84,7 @@ head('Cursos', 'cursos');
             <td class="text-end text-nowrap">
               <a class="btn btn-sm btn-outline-primary" href="cursos.php?editar=<?= $c['id'] ?>"><i class="bi bi-pencil me-1"></i>Editar</a>
               <form method="post" class="d-inline" onsubmit="return confirm('Excluir o curso apaga também seus calendários. Continuar?')">
+                <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="id" value="<?= $c['id'] ?>">
                 <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
@@ -102,6 +103,7 @@ head('Cursos', 'cursos');
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <form method="post">
+        <?= csrfCampo() ?>
         <div class="modal-header">
           <h5 class="modal-title" id="tituloModalCurso">
             <i class="bi bi-mortarboard me-2 text-primary"></i><?= $edit ? 'Editando: ' . e($edit['nome']) : 'Novo curso' ?>

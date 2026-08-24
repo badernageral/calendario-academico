@@ -13,3 +13,8 @@ require __DIR__ . '/util.php';
 require __DIR__ . '/layout.php';
 require __DIR__ . '/feriados.php';   // o motor monta os feriados do ano a partir do cadastro
 require __DIR__ . '/Engine.php';
+
+// Todo POST passa por aqui antes de qualquer tela olhar para ele. É o único
+// ponto de conferência do token justamente para não depender de cada tela
+// lembrar de fazê-la — e as telas são muitas.
+csrfConferir();

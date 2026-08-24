@@ -120,6 +120,7 @@ head('Feriados', 'feriados');
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <form method="post">
+        <?= csrfCampo() ?>
         <div class="modal-header">
           <h5 class="modal-title" id="tituloModalFeriado">
             <i class="bi bi-flag me-2 text-primary"></i><?= $edit ? 'Editando: ' . e($edit['nome']) : 'Novo feriado' ?>
@@ -231,6 +232,7 @@ head('Feriados', 'feriados');
 <?php if ($edit): ?>
 <form method="post" id="formExcluirFeriado"
       onsubmit="return confirm('Excluir <?= e($edit['nome']) ?>? Ele sai dos calendários de todos os anos.')">
+  <?= csrfCampo() ?>
   <input type="hidden" name="acao" value="excluir">
   <input type="hidden" name="id" value="<?= (int) $edit['id'] ?>">
 </form>

@@ -158,6 +158,7 @@ head('Níveis', 'niveis');
               <a class="btn btn-sm btn-outline-primary" href="niveis.php?editar=<?= $n['id'] ?>"><i class="bi bi-pencil me-1"></i>Editar</a>
               <?php if (!$n['uso']['cursos'] && !$n['uso']['eventos']): ?>
               <form method="post" class="d-inline" onsubmit="return confirm('Excluir este nível?')">
+                <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="id" value="<?= $n['id'] ?>">
                 <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
@@ -177,6 +178,7 @@ head('Níveis', 'niveis');
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <form method="post">
+        <?= csrfCampo() ?>
         <div class="modal-header">
           <h5 class="modal-title" id="tituloModalNivel">
             <i class="bi bi-diagram-3 me-2 text-primary"></i><?= $edit ? 'Editando: ' . e($edit['nome']) : 'Novo nível' ?>

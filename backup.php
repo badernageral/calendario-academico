@@ -5,8 +5,19 @@ require __DIR__ . '/lib/boot.php';
 // pasta de instalação.
 define('DIR_BACKUPS', getenv('CALENDARIO_BACKUPS') ?: APP_ROOT . '/backups');
 
-/** Tabelas que todo banco desta aplicação tem — serve de conferência na importação. */
-const TABELAS_ESPERADAS = ['config', 'cursos', 'calendarios', 'categorias', 'eventos', 'evento_datas'];
+/**
+ * Tabelas que todo banco desta aplicação tem — serve de conferência na
+ * importação. `periodos` entrou na lista porque é a única essencial que
+ * migrar() não recria: sem ela, o arquivo passava e todos os calendários
+ * perdiam os semestres em silêncio.
+ *
+ * `niveis` e `feriados` ficam de fora de propósito. Elas nasceram depois, e
+ * migrar() cria e semeia as duas — exigi-las aqui recusaria um backup antigo
+ * que o sistema sabe restaurar.
+ */
+const TABELAS_ESPERADAS = [
+    'config', 'cursos', 'calendarios', 'categorias', 'eventos', 'evento_datas', 'periodos',
+];
 
 /**
  * Pasta dos backups, criada na primeira vez junto do .htaccess: ela fica dentro
@@ -151,6 +162,7 @@ head('Backup', 'backup');
         </div>
         <form method="post" enctype="multipart/form-data"
               onsubmit="return confirm('Isto vai SUBSTITUIR todos os dados atuais pelo arquivo enviado. Continuar?')">
+          <?= csrfCampo() ?>
           <input type="hidden" name="acao" value="importar">
           <div class="mb-3">
             <label class="form-label">Arquivo de backup (.sqlite)</label>
