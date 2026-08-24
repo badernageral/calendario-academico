@@ -1,0 +1,35 @@
+name: Testes
+
+# A sintaxe de todo o PHP e a suíte do motor. É o que segura uma mexida na
+# contagem de dias letivos antes de ela virar um calendário homologado errado.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # As mesmas extensões que a aplicação exige: pdo_sqlite para o banco e
+      # calendar para easter_date(), que baliza os feriados móveis. mbstring é
+      # opcional no sistema, mas aqui entra para o teste cobrir o caminho dela.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, calendar, mbstring
+          coverage: none
+
+      - name: Conferir a sintaxe de todo o PHP
+        run: |
+          git ls-files '*.php' | while read -r f; do
+            php -l "$f" > /dev/null || exit 1
+          done
+          echo "sintaxe ok"
+
+      - name: Rodar a suíte
+        run: php testes/executar.php
