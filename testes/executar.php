@@ -206,6 +206,28 @@ foreach (feriadosDoAno($db, 2026) as $f) {
 confere('Carnaval de 2026 cai em 16 e 17/02',  $feriados['Carnaval'], ['2026-02-16', '2026-02-17']);
 confere('Corpus Christi de 2026 cai em 04/06', $feriados['Corpus Christi'], ['2026-06-04']);
 confere('Sexta-feira da Paixão em 03/04',      $feriados['Sexta-feira da Paixão'], ['2026-04-03']);
+// A Páscoa de anos conhecidos, para o cálculo não sair da realidade em silêncio.
+confere('Páscoa de anos conhecidos', array_map(
+    static fn (int $a): string => domingoDePascoa($a)->format('Y-m-d'),
+    [2024, 2025, 2026, 2027, 2028, 2030]
+), ['2024-03-31', '2025-04-20', '2026-04-05', '2027-03-28', '2028-04-16', '2030-04-21']);
+
+// Regressão: a Páscoa não pode depender do fuso. Com easter_date() dependia —
+// o timestamp dela é meia-noite UTC em umas versões do PHP e meia-noite local
+// em outras, e formatado em America/Araguaina (UTC-3) caía no dia anterior,
+// levando junto Carnaval, Cinzas, Paixão e Corpus Christi. Passava no PHP 8.5
+// do desenvolvimento e quebrava no 8.3, que é o que o modo desktop empacota.
+confere('a Páscoa não anda com o fuso', (function (): array {
+    $original = date_default_timezone_get();
+    $out = [];
+    foreach (['UTC', 'America/Araguaina', 'Pacific/Kiritimati', 'Pacific/Midway'] as $tz) {
+        date_default_timezone_set($tz);
+        $out[] = domingoDePascoa(2026)->format('Y-m-d');
+    }
+    date_default_timezone_set($original);
+    return array_values(array_unique($out));
+})(), ['2026-04-05']);
+
 confere('feriado inativo sai de circulação',   (function () use ($db) {
     $db->exec("UPDATE feriados SET ativo = 0 WHERE nome = 'Tiradentes'");
     $nomes = array_column(feriadosDoAno($db, 2026), 'nome');

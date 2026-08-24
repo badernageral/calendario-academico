@@ -14,10 +14,24 @@ declare(strict_types=1);
  * uma vez, e nenhum ano fica com uma cópia velha.
  */
 
-/** Domingo de Páscoa do ano, base dos feriados móveis. */
+/**
+ * Domingo de Páscoa do ano, base dos feriados móveis.
+ *
+ * Sai de easter_days(), que devolve quantos dias a Páscoa cai depois de 21 de
+ * março — um número puro, sem hora e sem fuso.
+ *
+ * easter_date() não serve aqui: ela devolve um timestamp, e a convenção dele
+ * muda com a versão do PHP — em umas é meia-noite UTC, em outras é meia-noite
+ * do fuso local. Como o sistema roda fixo em America/Araguaina (UTC-3),
+ * formatar com date() um timestamp de meia-noite UTC devolve o dia anterior, e
+ * a Páscoa inteira anda um dia para trás: Carnaval, Quarta-feira de Cinzas,
+ * Sexta-feira da Paixão e Corpus Christi saem todos errados no calendário
+ * impresso. O desenvolvimento aqui é em PHP 8.5 e não mostrava nada; o modo
+ * desktop empacota o PHP 8.3, que mostrava.
+ */
 function domingoDePascoa(int $ano): DateTimeImmutable
 {
-    return new DateTimeImmutable(date('Y-m-d', easter_date($ano)));
+    return (new DateTimeImmutable("$ano-03-21"))->modify('+' . easter_days($ano) . ' days');
 }
 
 /** Os feriados cadastrados e ativos, na ordem em que a tela mostra. */
