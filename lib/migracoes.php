@@ -35,34 +35,10 @@ declare(strict_types=1);
 function migracoes(): array
 {
     return [
-        // O <textarea> do HTML manda \r\n, e nada tirava o \r antes de gravar.
-        // Quem lê esses campos parte por \n, então cada linha ficava com um \r
-        // no fim — dentro do cabeçalho do calendário impresso, inclusive. A
-        // entrada já foi corrigida em post(); isto limpa o que ficou gravado.
-        '2026_08_28_fim_de_linha_sem_cr' => static function (PDO $pdo): void {
-            $pdo->exec("UPDATE config      SET valor       = replace(valor,       char(13) || char(10), char(10))
-                         WHERE valor       LIKE '%' || char(13) || '%'");
-            $pdo->exec("UPDATE calendarios SET observacoes = replace(observacoes, char(13) || char(10), char(10))
-                         WHERE observacoes LIKE '%' || char(13) || '%'");
-        },
-
-        // A chave nasceu depois deste banco. cfg() cai no padrão quando ela
-        // falta, então nada estava errado na tela — mas um banco novo tinha a
-        // linha e este não, e duas instalações iguais têm de ter o mesmo banco.
-        '2026_08_28_config_ganha_negrito_periodo' => static function (PDO $pdo): void {
-            $pdo->exec("INSERT OR IGNORE INTO config (chave, valor) VALUES ('negrito_periodo', '1')");
-        },
-
-        // A ordem da legenda pulava o 9: Planejamento em 10 e o marco de período
-        // em 11. Não mudava nada na tela — a ordenação é relativa —, mas deixava
-        // um buraco que a próxima categoria a entrar herdaria. Só mexe em quem
-        // ainda está no valor de fábrica, para não desfazer uma ordem escolhida
-        // à mão.
-        '2026_08_28_ordem_das_categorias_sem_buraco' => static function (PDO $pdo): void {
-            $pdo->exec("UPDATE categorias SET ordem = 9
-                         WHERE nome = 'Planejamento Pedagógico' AND ordem = 10");
-            $pdo->exec("UPDATE categorias SET ordem = 10
-                         WHERE nome = 'Início ou Fim de semestre/bimestre letivo' AND ordem = 11");
-        },
+        // Vazio na 1.0, de propósito: um sistema que nasce agora nasce do
+        // schema.sql, e o que veio antes dele era desenvolvimento — não há banco
+        // no mundo que precise ser alcançado por uma migração anterior ao
+        // lançamento. A primeira entra na primeira mudança de banco que o
+        // schema.sql sozinho não resolver.
     ];
 }
