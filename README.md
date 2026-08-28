@@ -366,6 +366,9 @@ divergência.
 
 ## Estrutura
 
+    login.php               entrada no sistema
+    setup.php               cadastro do primeiro usuário (só sem nenhum)
+    sair.php                encerra a sessão (POST)
     index.php               painel: números do ano e atalhos
     calendarios.php         calendários (criar, copiar de outro ano, excluir)
     editar_calendario.php   caminho para o modal de dados do calendário
@@ -378,7 +381,8 @@ divergência.
     categorias.php          legenda: cores, efeito no cômputo, prioridade
     backup.php              exportar e importar o banco
     gerar.php               saída no formato da planilha (tela e impressão)
-    lib/                    db.php, migracoes.php (histórico do schema),
+    lib/                    db.php, auth.php (login e portão),
+                            migracoes.php (histórico do schema),
                             Engine.php (cálculo), util.php, schema.sql,
                             layout.php (barra lateral), grade_calendario.php
                             (a grade anual, usada pelas três telas),
@@ -421,9 +425,31 @@ Cada teste monta o cenário num banco temporário, criado do próprio `schema.sq
 com o seed de fábrica; a base do site não é tocada. O GitHub Actions roda as
 duas e um `php -l` em todo arquivo a cada push.
 
+## Acesso
+
+O sistema pede login. Na primeira abertura, sem nenhum usuário cadastrado,
+qualquer endereço leva a `setup.php`, que cria o **primeiro usuário** e já entra
+com ele; feito isso, essa tela some. Depois é `login.php` para quem ainda não
+entrou, e o botão de sair fica na barra de cima, ao lado do nome.
+
+Perfil único: quem tem senha faz tudo. Não há papel de leitura porque o
+calendário pronto sai por `gerar.php`, que é a via de quem só quer ver.
+
+O portão fica em `lib/boot.php`, junto da conferência do token — no mesmo lugar
+e pelo mesmo motivo: uma tela nova nasce protegida sem ninguém lembrar de
+protegê-la. Pela linha de comando ele não vale, que é por onde os testes entram.
+
+A senha é guardada como `password_hash()` (bcrypt), nunca em claro, e o id da
+sessão é regenerado no login. **Não há tela de gestão de usuários**: para
+acrescentar outro ou trocar uma senha, hoje é pelo banco.
+
 ## Mudanças no banco
 
-O `schema.sql` é o que uma instalação nova recebe. Um banco que já existe é
+O `schema.sql` é o que uma instalação nova recebe, e ele é aplicado **em toda
+abertura**: como é todo `CREATE ... IF NOT EXISTS`, não mexe no que existe e
+cria o que passou a existir — é assim que uma tabela nova chega a um banco
+antigo sem migração. Migração é para o que o `CREATE` não resolve: coluna que
+muda de forma, dado que precisa ser convertido. Um banco que já existe é
 atualizado por `lib/migracoes.php`: uma lista ordenada de nome => o que fazer,
 em que cada item roda **uma vez**, dentro de uma transação, e o nome fica
 gravado na tabela `migracoes` no mesmo commit. Um banco recém-criado nasce com

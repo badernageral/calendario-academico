@@ -62,9 +62,24 @@ function head(string $titulo, string $ativo = ''): void
       </button>
       <span class="navbar-brand mb-0 fw-semibold text-dark"><?= e($titulo) ?></span>
     </div>
-    <?php if (cfg('campus') !== ''): ?>
-      <span class="small text-muted d-none d-md-inline"><i class="bi bi-building me-1"></i><?= e(cfg('campus')) ?></span>
-    <?php endif; ?>
+    <div class="d-flex align-items-center gap-3">
+      <?php if (cfg('campus') !== ''): ?>
+        <span class="small text-muted d-none d-md-inline"><i class="bi bi-building me-1"></i><?= e(cfg('campus')) ?></span>
+      <?php endif; ?>
+      <?php $u = usuarioAtual(); if ($u): ?>
+        <?php // Sair por POST, com token: um GET numa página aberta em outra aba
+              // derrubaria a sessão de quem nem clicou. ?>
+        <form method="post" action="sair.php" class="d-flex align-items-center gap-2 mb-0">
+          <?= csrfCampo() ?>
+          <span class="small text-muted text-nowrap" title="<?= e($u['usuario']) ?>">
+            <i class="bi bi-person-circle me-1"></i><?= e($u['nome']) ?>
+          </span>
+          <button class="btn btn-sm btn-outline-secondary border-0" title="Sair">
+            <i class="bi bi-box-arrow-right"></i>
+          </button>
+        </form>
+      <?php endif; ?>
+    </div>
   </nav>
 
   <div class="content-wrapper p-3 p-lg-4">

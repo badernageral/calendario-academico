@@ -13,6 +13,17 @@
   --topbar-height: 56px;
 }
 
+/* ── Telas de porta (login e primeiro acesso) ─ */
+/* Fundo escuro e um cartão no meio: nada de barra lateral nem menu, porque
+   nada disso vale para quem ainda não entrou. */
+.tela-acesso {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: var(--sidebar-bg);
+}
+.cartao-acesso { width: 100%; max-width: 420px; }
+
 /* ── Layout ────────────────────────────────── */
 /* Enquanto um modal está aberto, o Bootstrap põe `overflow: hidden` no <body>,
    inline, para a página atrás não rolar junto. Com o <html> em `visible`, esse

@@ -41,6 +41,9 @@ $curso = (int) $db->lastInsertId();
 $db->prepare('INSERT INTO calendarios (curso_id, ano) VALUES (?,?)')->execute([$curso, 2026]);
 $cal = (int) $db->lastInsertId();
 $feriado = (int) $db->query('SELECT MIN(id) FROM feriados')->fetchColumn();
+// O sistema pede login: sem um usuário, tudo redireciona para o primeiro acesso
+// e o teste mediria a tela de cadastro doze vezes.
+criarUsuario($db, 'Teste', 'teste', 'senha-de-teste');
 salvarPeriodos($db, $cal, [
     1 => ['2026-02-02', '2026-04-10'], 2 => ['2026-04-13', '2026-06-30'],
     3 => ['2026-08-03', '2026-10-02'], 4 => ['2026-10-05', '2026-12-18'],
@@ -70,7 +73,7 @@ register_shutdown_function(static function () use ($pid): void {
 // falharia por conexão recusada, e não por defeito da tela.
 $base = "http://127.0.0.1:$porta";
 for ($i = 0; $i < 50; $i++) {
-    if (@file_get_contents("$base/index.php", false, stream_context_create(
+    if (@file_get_contents("$base/login.php", false, stream_context_create(
         ['http' => ['timeout' => 1, 'ignore_errors' => true]]
     )) !== false) {
         break;
@@ -78,9 +81,55 @@ for ($i = 0; $i < 50; $i++) {
     usleep(100000);
 }
 
+/**
+ * Um pedido com a sessão que o login abriu. $cookie é preenchido pelo primeiro
+ * Set-Cookie que chegar e vai em todos os pedidos daí em diante — é o que um
+ * navegador faz, e sem isso cada tela responderia como visitante.
+ *
+ * @return array{0: string|false, 1: int} corpo e código
+ */
+$cookie = '';
+$pedir = static function (string $url, ?array $campos = null) use (&$cookie): array {
+    $opcoes = ['timeout' => 10, 'ignore_errors' => true, 'follow_location' => 0];
+    $cabecalhos = $cookie !== '' ? ["Cookie: $cookie"] : [];
+    if ($campos !== null) {
+        $opcoes['method']  = 'POST';
+        $opcoes['content'] = http_build_query($campos);
+        $cabecalhos[]      = 'Content-Type: application/x-www-form-urlencoded';
+    }
+    $opcoes['header'] = implode("\r\n", $cabecalhos);
+    $corpo  = @file_get_contents($url, false, stream_context_create(['http' => $opcoes]));
+    $codigo = 0;
+    foreach ($http_response_header ?? [] as $h) {
+        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+            $codigo = (int) $m[1];
+        }
+        // Sempre o último: o login regenera o id da sessão, e ficar com o
+        // primeiro deixaria o teste segurando um id que já foi destruído.
+        if (preg_match('#^Set-Cookie:\s*([^;]+)#i', $h, $mc)) {
+            $cookie = $mc[1];
+        }
+    }
+    return [$corpo, $codigo];
+};
+
+// Entra no sistema. O token sai do próprio formulário, como no navegador.
+[$corpoLogin] = $pedir("$base/login.php");
+preg_match('/name="_csrf" value="([^"]+)"/', (string) $corpoLogin, $m);
+$pedir("$base/login.php", ['_csrf' => $m[1] ?? '', 'acao' => 'entrar', 'usuario' => 'teste', 'senha' => 'senha-de-teste']);
+[$corpoPainel, $codigoPainel] = $pedir("$base/index.php");
+if ($codigoPainel !== 200 || !str_contains((string) $corpoPainel, 'Calendário Acadêmico')) {
+    echo "\n\033[31mNão foi possível entrar no sistema; as telas não seriam testadas.\033[0m\n";
+    echo "  login: código $codigoPainel, cookie " . ($cookie !== '' ? "'$cookie'" : '(nenhum)') . "\n";
+    echo "  token lido do formulário: " . (($m[1] ?? '') !== '' ? 'sim' : 'NÃO') . "\n";
+    echo "  primeiros 300 do painel: " . substr(strip_tags((string) $corpoPainel), 0, 300) . "\n";
+    exit(1);
+}
+
 // ── As telas ────────────────────────────────────────────────────────────────
 $telas = [
     'index.php',
+    'login.php',
     'calendarios.php',
     'calendarios.php?novo=1',
     "calendario.php?id=$cal",
@@ -111,14 +160,7 @@ $falhou = [];
 echo "\n\033[1mTelas: abrem sem erro?\033[0m\n";
 
 foreach ($telas as $tela) {
-    $ctx  = stream_context_create(['http' => ['timeout' => 10, 'ignore_errors' => true]]);
-    $body = @file_get_contents("$base/$tela", false, $ctx);
-    $codigo = 0;
-    foreach ($http_response_header ?? [] as $h) {
-        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
-            $codigo = (int) $m[1];
-        }
-    }
+    [$body, $codigo] = $pedir("$base/$tela");
     // 302 é resposta boa: é para onde uma tela manda quando o id não serve.
     $ok = $body !== false && in_array($codigo, [200, 302], true);
     if ($ok) {

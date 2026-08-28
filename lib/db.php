@@ -38,8 +38,13 @@ function db(): PDO
     // escrita daqui leva.
     $pdo->exec('PRAGMA busy_timeout = 5000');
 
+    // O schema é todo CREATE ... IF NOT EXISTS, então aplicá-lo sempre não mexe
+    // no que já existe e cria o que passou a existir. É o que faz uma tabela
+    // nova chegar a um banco antigo sem precisar de migração: migração é para o
+    // que o CREATE não resolve — coluna que muda, dado que se converte.
+    $pdo->exec((string) file_get_contents(__DIR__ . '/schema.sql'));
+
     if ($novo) {
-        $pdo->exec((string) file_get_contents(__DIR__ . '/schema.sql'));
         seed($pdo);
         // O schema.sql já descreve o banco depois de todas as migrações, então
         // elas nascem marcadas como aplicadas — rodá-las aqui seria repetir o

@@ -70,6 +70,18 @@ CREATE TABLE IF NOT EXISTS calendarios (
     UNIQUE (curso_id, ano)
 );
 
+-- Quem entra no sistema. Perfil único: quem tem senha faz tudo — não há papel
+-- de leitura, e o calendário publicado sai por gerar.php, que é a via de quem
+-- só quer ver. A senha nunca é guardada, só o hash que password_hash() produz.
+CREATE TABLE IF NOT EXISTS usuarios (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome       TEXT NOT NULL,
+    usuario    TEXT NOT NULL UNIQUE,
+    senha_hash TEXT NOT NULL,
+    ativo      INTEGER NOT NULL DEFAULT 1,
+    criado_em  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 -- Os quatro bimestres, que é o que se digita, e os dois semestres que saem
 -- deles. Ambos delimitam contagem: o semestre diz que dia é letivo, o bimestre
 -- responde pelos contadores e pelos marcos automáticos na grade.

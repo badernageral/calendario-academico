@@ -621,6 +621,40 @@ confere('o fim de linha do navegador vira só \\n', (function () {
     return [$v, substr_count($v, "\r")];
 })(), ["uma\nduas\ntrês", 0]);
 
+grupo('Entrar no sistema');
+$db = bancoLimpo();
+$db->exec('DELETE FROM usuarios');
+confere('sem ninguém cadastrado, é primeira abertura', semUsuarios($db), true);
+$novo = criarUsuario($db, 'José Robson', 'jose', 'senha12345');
+confere('e deixa de ser depois do primeiro', semUsuarios($db), false);
+// A senha não fica no banco: só o hash, e ele muda a cada gravação por causa do
+// sal, então comparar com a senha nunca dá certo — quem confere é o verify.
+confere('a senha não é guardada', str_contains((string) $novo['senha_hash'], 'senha12345'), false);
+confere('e o hash é o do password_hash', password_verify('senha12345', (string) $novo['senha_hash']), true);
+
+confere('login e senha certos entram',
+    autenticar($db, 'jose', 'senha12345')['usuario'] ?? null, 'jose');
+confere('senha errada, não', autenticar($db, 'jose', 'senha1234'), null);
+confere('usuário que não existe, não', autenticar($db, 'ninguem', 'senha12345'), null);
+// Inativo é diferente de excluído: o cadastro fica, o acesso não.
+confere('usuário inativo, não', (function () use ($db) {
+    $db->exec("UPDATE usuarios SET ativo = 0 WHERE usuario = 'jose'");
+    $r = autenticar($db, 'jose', 'senha12345');
+    $db->exec("UPDATE usuarios SET ativo = 1 WHERE usuario = 'jose'");
+    return $r;
+})(), null);
+confere('e dois usuários não dividem o mesmo login', (function () use ($db) {
+    try {
+        criarUsuario($db, 'Outro', 'jose', 'senha12345');
+        return true;
+    } catch (PDOException $e) {
+        return false;
+    }
+})(), false);
+
+confere('a senha curta é recusada, a de oito passa',
+    [senhaFraca('1234567') !== '', senhaFraca('12345678') !== ''], [true, false]);
+
 grupo('Migrações do banco');
 $db = bancoLimpo();
 confere('um banco novo tem a tabela do histórico',
