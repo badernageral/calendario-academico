@@ -136,7 +136,7 @@ head('Configurações', 'configuracoes');
 
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-transparent fw-semibold">
-      <i class="bi bi-bookmark-star me-1 text-primary"></i>Eventos automáticos
+      <i class="bi bi-bookmark-star me-1 text-primary"></i>Semestre/bimestre (evento automático)
     </div>
     <div class="card-body">
       <p class="small text-muted">

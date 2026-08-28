@@ -245,8 +245,9 @@ Para conferir o que está carregado — as três precisam aparecer:
    *Instituição* (órgão do cabeçalho impresso, campus e cidade), *Documento
    gerado* (modelo do título, com `{curso}`, `{nivel}` e `{ano}`), *Padrão de um
    calendário novo* (a situação, que cada calendário ajusta depois),
-   *Eventos automáticos* (tudo sobre as linhas que o sistema escreve nos dias de
-   início e fim de bimestre: a cor do dia, o negrito e os quatro textos),
+   *Semestre/bimestre (evento automático)* (tudo sobre as linhas que o sistema
+   escreve nos dias de início e fim de bimestre: a cor do dia, o negrito e os
+   quatro textos),
    *Feriados* (a cor de cada um dos quatro tipos, aplicada pelo cadastro de
    Feriados) e *Cores gerais da grade* (dias de segunda a sexta, sábados e
    domingos, faixa do nome do mês, cabeçalho dos dias úteis).
