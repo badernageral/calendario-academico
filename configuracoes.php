@@ -194,10 +194,7 @@ head('Configurações', 'configuracoes');
     </div>
     <div class="card-body">
       <p class="small text-muted">
-        A cor de cada tipo, aplicada pelo cadastro em <a href="feriados.php">Feriados</a>. Os quatro
-        não se criam nem se editam na tela de Legenda — nome e prioridade são fixos —, mas saem na
-        legenda do calendário impresso. Dando a mesma cor aos três primeiros, a legenda impressa
-        junta os três numa linha só, <em>Feriado</em>.
+        A cor de cada tipo, aplicada pelo cadastro em <a href="feriados.php">Feriados</a>.
       </p>
       <div class="row g-3">
         <?php foreach ($g_deFeriado as $g_nome => $g_cat): ?>
