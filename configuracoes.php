@@ -157,7 +157,7 @@ head('Configurações', 'configuracoes');
           </div>
           <div class="form-text">
             Vale na lista de cada mês, na tela e no papel. Desmarcado, elas saem com o mesmo peso
-            dos outros eventos — a cor do dia, ao lado, não muda.
+            dos outros eventos.
           </div>
         </div>
       </div>
