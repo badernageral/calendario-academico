@@ -92,7 +92,7 @@ $telas = [
     'feriados.php?ano=2026&novo=1',
     // Os dados do calendário também: o formulário virou modal na própria grade.
     "calendario.php?id=$cal&editar_cal=1",
-    "calendario.php?id=$cal&filtros=1&feriados=0&globais=0&auto=0",
+    "calendario.php?id=$cal&filtros=1&feriados=0&globais=0&auto=0&locais=0",
     'calendarios.php?novo=1',
     // A tela antiga virou caminho para o modal: responde 302.
     "editar_calendario.php?id=$cal",

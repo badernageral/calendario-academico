@@ -124,6 +124,10 @@ foreach (array_keys(regimesCurso()) as $r) {
     $rotulosPorRegime[$r] = rotulosBimestre($r);
 }
 
+// Com o modal abrindo, o erro vai para dentro dele; o head() imprime o que
+// sobrar, que é o caso de um "Calendário excluído.".
+$erroModal = modalAbrindo() ? erroParaModal() : '';
+
 head('Calendários', 'calendarios');
 ?>
 

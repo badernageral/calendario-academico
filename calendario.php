@@ -19,22 +19,25 @@ if (!$cal) {
 }
 $ano = (int) $cal['ano'];
 
-// Caixas "Feriados", "Eventos globais" e "Automáticos": filtro só de exibição
-// da grade, que nasce com as três marcadas. Desmarcadas, sobra à vista o que é
-// deste calendário e foi digitado. Como caixa desmarcada não é enviada,
-// "filtros=1" é a marca de que a resposta veio do formulário — sem ela, é a
-// primeira entrada na tela.
+// As quatro caixas de "Exibir" — Feriados, Eventos globais, Locais e
+// Automáticos — são filtro só de exibição da grade, e nascem todas marcadas.
+// Desmarcar tira o tipo da vista sem tirá-lo da conta: os dias letivos
+// continuam contando com tudo. Como caixa desmarcada não é enviada, "filtros=1"
+// é a marca de que a resposta veio do formulário — sem ela, é a primeira
+// entrada na tela.
 $filtrou     = get('filtros') === '1';
 $verFeriados = !$filtrou || get('feriados') === '1';
 $verGlobais  = !$filtrou || get('globais') === '1';
 $verAuto     = !$filtrou || get('auto') === '1';
+$verLocais   = !$filtrou || get('locais') === '1';
 
 // Vai em toda volta ao calendário (salvar, cancelar, editar) para as caixas
 // continuarem como estavam.
 $voltarPara = 'calendario.php?id=' . $id
     . '&filtros=1&feriados=' . ($verFeriados ? '1' : '0')
     . '&globais=' . ($verGlobais ? '1' : '0')
-    . '&auto=' . ($verAuto ? '1' : '0');
+    . '&auto=' . ($verAuto ? '1' : '0')
+    . '&locais=' . ($verLocais ? '1' : '0');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     tratarPostEvento($db, $ano, $id, $voltarPara);
@@ -75,6 +78,10 @@ foreach ($eng->eventos() as $evConta) {
     $evConta['calendario_id'] === null ? $evGlobais++ : $evLocais++;
 }
 $total = $evLocais + $evGlobais;
+
+// Com um modal reabrindo, o erro aparece dentro do formulário, e não atrás
+// dele. Qual dos três o recebe é cada include que decide, pelo que a URL pediu.
+$erroModal = modalAbrindo() ? erroParaModal() : '';
 
 head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
 
@@ -156,6 +163,7 @@ $contadores = [
 $gradeVerFeriados = $verFeriados;
 $gradeVerGlobais  = $verGlobais;
 $gradeVerAuto     = $verAuto;
+$gradeVerLocais   = $verLocais;
 require __DIR__ . '/lib/grade_calendario.php';
 ?>
 

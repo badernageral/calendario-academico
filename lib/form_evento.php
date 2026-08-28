@@ -14,6 +14,7 @@
  */
 $ev ??= null;
 $dataPadrao ??= '';
+$erroModal  ??= '';
 $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
 ?>
 <div class="modal fade" id="modalEvento" tabindex="-1" aria-labelledby="tituloModalEvento">
@@ -30,6 +31,12 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
 
         <div class="modal-body">
           <?= csrfCampo() ?>
+          <?php // O que o servidor recusou aparece aqui dentro, e não no topo da
+                // página, atrás do modal que reabriu com o que foi digitado. ?>
+          <?php $e_erro = $abrirModal ? $erroModal : ''; ?>
+          <?php if ($e_erro !== ''): ?>
+            <div class="alert alert-danger" role="alert"><?= e($e_erro) ?></div>
+          <?php endif; ?>
           <input type="hidden" name="acao" value="salvar_evento">
           <input type="hidden" name="id" value="<?= (int) ($ev['id'] ?? 0) ?>">
           <?php if (!$baseComum): ?>

@@ -23,6 +23,9 @@ $quantos = (int) $db->query('SELECT COUNT(*) FROM feriados')->fetchColumn();
 
 $eng = Engine::paraFeriados($db, $ano);
 
+// Com o modal reabrindo, o erro aparece dentro do formulário.
+$erroModal = modalAbrindo() ? erroParaModal() : '';
+
 head('Feriados', 'feriados');
 ?>
 <div class="card border-0 shadow-sm mb-3">

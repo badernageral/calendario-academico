@@ -218,9 +218,11 @@ Para conferir o que está carregado — as três precisam aparecer:
    calendários do ano, e um feriado, todos os anos. Editar é de qualquer tela.
    O marco de bimestre não tem ×, e o clique nele abre os **dados do
    calendário** — que é de onde ele sai. Todo evento entra nessa lista — a mesma
-   que sai impressa. As caixas *Exibir* — *Feriados*, *Eventos globais* e
-   *Automáticos* — tiram cada tipo da vista sem mexer na contagem de dias
-   letivos, que continua contando com tudo.
+   que sai impressa. As quatro caixas de *Exibir* — *Feriados*, *Eventos
+   globais*, *Locais* e *Automáticos* — tiram cada tipo da vista sem mexer na
+   contagem de dias letivos, que continua contando com tudo. O que o servidor
+   recusar ao salvar aparece **dentro do próprio modal**, junto do que foi
+   digitado, e não no topo da página, atrás dele.
    **Passar o mouse numa linha acende, na grade, os dias daquele evento** — uma
    lâmina azul translúcida por cima da célula, com o número em branco e negrito.
    Um evento de 26 dias marca as 26 células de uma vez, que é o que torna

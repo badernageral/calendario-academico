@@ -34,21 +34,22 @@ $g_coisa = $g_feriados ? 'feriado' : 'evento';
 $g_verFeriados = !isset($gradeVerFeriados) || $gradeVerFeriados;
 $g_verGlobais  = !isset($gradeVerGlobais)  || $gradeVerGlobais;
 $g_verAuto     = !isset($gradeVerAuto)     || $gradeVerAuto;
-$g_filtravel   = !$g_global && isset($gradeVerFeriados, $gradeVerGlobais, $gradeVerAuto);
+$g_verLocais   = !isset($gradeVerLocais)   || $gradeVerLocais;
+$g_filtravel   = !$g_global && isset($gradeVerFeriados, $gradeVerGlobais, $gradeVerAuto, $gradeVerLocais);
 
 /**
  * A ordem importa. O marco de bimestre leva o id do calendário e o feriado não
  * leva nenhum, então os dois passariam pela última linha como se fossem evento
  * local — cada um tem de ser reconhecido antes dela.
  */
-$g_visivel = static function (array $ev) use ($g_verFeriados, $g_verGlobais, $g_verAuto): bool {
+$g_visivel = static function (array $ev) use ($g_verFeriados, $g_verGlobais, $g_verAuto, $g_verLocais): bool {
     if (!empty($ev['auto'])) {
         return $g_verAuto;
     }
     if (isset($ev['feriado_id'])) {
         return $g_verFeriados;
     }
-    return $ev['calendario_id'] !== null || $g_verGlobais;
+    return $ev['calendario_id'] !== null ? $g_verLocais : $g_verGlobais;
 };
 
 $g_cats = $eng->categorias();
@@ -150,6 +151,11 @@ unset($g_lista, $g_ev, $g_ini);
           <input class="form-check-input" type="checkbox" name="globais" value="1" id="verGlobais"
                  <?= $g_verGlobais ? 'checked' : '' ?> onchange="this.form.submit()">
           <label class="form-check-label small" for="verGlobais">Eventos globais</label>
+        </div>
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" name="locais" value="1" id="verLocais"
+                 <?= $g_verLocais ? 'checked' : '' ?> onchange="this.form.submit()">
+          <label class="form-check-label small" for="verLocais">Locais</label>
         </div>
         <div class="form-check mb-0">
           <input class="form-check-input" type="checkbox" name="auto" value="1" id="verAuto"

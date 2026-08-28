@@ -13,6 +13,7 @@
  * que é escrito a partir justamente destas datas.
  */
 $calEdit ??= null;
+$erroModal ??= '';
 $c_novo  = $calEdit === null;
 
 if ($c_novo) {
@@ -59,7 +60,11 @@ if ($c_novo) {
           <?php if (!$c_novo): ?>
             <input type="hidden" name="cal_id" value="<?= (int) $calEdit['id'] ?>">
           <?php endif; ?>
-          <div class="alert alert-danger d-none erro-periodos" role="alert"></div>
+          <?php // A mesma caixa serve aos dois: a validação do navegador escreve
+                // nela antes de enviar, e o que o servidor recusou já vem dentro. ?>
+          <?php $c_erro = $c_abrir ? $erroModal : ''; ?>
+          <div class="alert alert-danger<?= $c_erro === '' ? ' d-none' : '' ?> erro-periodos"
+               role="alert"><?= e($c_erro) ?></div>
 
           <?php if (!$c_novo && $c_salvos === []): ?>
             <div class="alert alert-warning d-flex" role="alert">
@@ -158,4 +163,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <?php endif; ?>
-<?php unset($c_novo, $c_valores, $c_regime, $c_ano, $c_abrir, $c_salvos, $c_n, $c_i, $c_f, $c_c); ?>
+<?php unset($c_erro, $c_novo, $c_valores, $c_regime, $c_ano, $c_abrir, $c_salvos, $c_n, $c_i, $c_f, $c_c); ?>

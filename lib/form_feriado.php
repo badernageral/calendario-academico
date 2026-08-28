@@ -14,6 +14,7 @@
  */
 $feriadoEdit ??= null;
 $feriadoNovo ??= false;
+$erroModal   ??= '';
 $f_abrir     = $feriadoEdit !== null || $feriadoNovo;
 $f_cats      = categoriasDeFeriado($db);
 $f_tipo      = $feriadoEdit['tipo'] ?? 'fixo';
@@ -35,6 +36,12 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
         <div class="modal-body">
           <input type="hidden" name="acao" value="salvar_feriado">
           <input type="hidden" name="id" value="<?= (int) ($feriadoEdit['id'] ?? 0) ?>">
+          <?php // O que o servidor recusou aparece aqui dentro: no topo da página
+                // ficaria atrás do próprio modal que reabriu. ?>
+          <?php $f_erro = $f_abrir ? $erroModal : ''; ?>
+          <?php if ($f_erro !== ''): ?>
+            <div class="alert alert-danger" role="alert"><?= e($f_erro) ?></div>
+          <?php endif; ?>
 
           <div class="row g-3">
             <div class="col-md-8">
@@ -254,4 +261,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <?php endif; ?>
-<?php unset($f_abrir, $f_cats, $f_tipo, $f_dia, $f_mes, $f_nome, $f_c, $f_ini, $f_atual, $f_eh); ?>
+<?php unset($f_erro, $f_abrir, $f_cats, $f_tipo, $f_dia, $f_mes, $f_nome, $f_c, $f_ini, $f_atual, $f_eh); ?>

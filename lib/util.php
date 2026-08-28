@@ -166,6 +166,42 @@ function flash(?string $msg = null, string $tipo = 'ok'): ?array
 }
 
 /**
+ * Tira da sessão a mensagem de erro para o modal mostrá-la dentro do próprio
+ * formulário. No topo da página ela fica atrás do modal aberto: o formulário
+ * volta com o que foi digitado e nada explica por que não gravou.
+ *
+ * Só o erro. Um "Calendário criado." fala da tela, não do formulário, e o
+ * formulário nem está mais aberto quando ele aparece.
+ *
+ * Chame antes de head(), que é quem imprime o que sobrar na sessão — e só
+ * quando o modal vai mesmo abrir, senão a mensagem some sem ninguém ler.
+ */
+/**
+ * Algum modal vai abrir nesta resposta? São os parâmetros com que cada tela
+ * monta um formulário pronto — o mesmo conjunto para onde os erros redirecionam.
+ */
+function modalAbrindo(): bool
+{
+    foreach (['editar_cal', 'editar_feriado', 'editar_evento', 'nova_data', 'novo', 'novo_feriado'] as $chave) {
+        if (get($chave) !== '') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function erroParaModal(): string
+{
+    sessao();
+    $f = $_SESSION['flash'] ?? null;
+    if ($f === null || $f['tipo'] !== 'erro') {
+        return '';
+    }
+    unset($_SESSION['flash']);
+    return (string) $f['msg'];
+}
+
+/**
  * Compara dois nomes como um leitor os ordenaria: sem ligar para maiúscula nem
  * para acento. O ORDER BY do SQLite compara byte a byte — "Pós-graduação"
  * cairia depois de "Pré-vestibular", porque o "ó" em UTF-8 começa num byte

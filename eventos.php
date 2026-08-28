@@ -76,6 +76,9 @@ $st = $db->prepare('SELECT COUNT(*) FROM eventos WHERE calendario_id IS NULL AND
 $st->execute([$ano]);
 $total = (int) $st->fetchColumn();
 
+// Com um modal reabrindo, o erro aparece dentro do formulário.
+$erroModal = modalAbrindo() ? erroParaModal() : '';
+
 head('Eventos globais', 'base');
 ?>
 <div class="card border-0 shadow-sm mb-3">
