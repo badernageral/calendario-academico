@@ -9,8 +9,8 @@
  * ele está à vista: no calendário de um curso, na lista de eventos globais ou
  * no cadastro. Sair da tela para editá-lo custava o ano em foco e os filtros.
  *
- * O que se grava vale para todos os anos e para todos os cursos — o formulário
- * diz isso, para ninguém achar que está mexendo só no calendário aberto.
+ * O que se grava vale para todos os anos e para todos os cursos, não só para o
+ * calendário de onde o formulário foi aberto.
  */
 $feriadoEdit ??= null;
 $feriadoNovo ??= false;
@@ -35,14 +35,6 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
         <div class="modal-body">
           <input type="hidden" name="acao" value="salvar_feriado">
           <input type="hidden" name="id" value="<?= (int) ($feriadoEdit['id'] ?? 0) ?>">
-
-          <div class="alert alert-light border d-flex mb-3" role="alert">
-            <i class="bi bi-info-circle me-2 mt-1 text-primary"></i>
-            <div class="small">
-              O feriado é do cadastro, não deste calendário: o que mudar aqui vale para
-              <strong>todos os cursos e todos os anos</strong>.
-            </div>
-          </div>
 
           <div class="row g-3">
             <div class="col-md-8">
