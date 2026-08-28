@@ -405,39 +405,6 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
 })();
 </script>
 
-<script>
-/**
- * Escolher uma categoria: a linha clicada leva a cor e o nome para o botão do
- * campo, e o id para o campo escondido, que é o que vai no POST.
- */
-(function () {
-  var caixa = document.querySelector('.seletor-categoria');
-  if (!caixa) { return; }
-
-  var botao   = caixa.querySelector('#botaoCategoria'),
-      campo   = caixa.querySelector('#categoriaEvento'),
-      quadro  = botao.querySelector('.retangulo-cor'),
-      rotulo  = botao.querySelector('.rotulo');
-
-  caixa.querySelectorAll('.dropdown-item').forEach(function (item) {
-    item.addEventListener('click', function () {
-      var cor = item.dataset.cor || '';
-
-      campo.value        = item.dataset.valor || '';
-      rotulo.textContent = item.dataset.nome;
-      quadro.style.background = cor;
-      quadro.classList.toggle('sem-cor', cor === '');
-
-      caixa.querySelectorAll('.dropdown-item').forEach(function (a) {
-        a.classList.remove('active');
-        a.setAttribute('aria-selected', 'false');
-      });
-      item.classList.add('active');
-      item.setAttribute('aria-selected', 'true');
-    });
-  });
-})();
-</script>
 
 <script>
 /**

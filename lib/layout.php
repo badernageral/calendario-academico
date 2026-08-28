@@ -98,6 +98,42 @@ function foot(): void
   });
 })();
 
+/**
+ * Dropdown de cor: a linha clicada leva a cor e o nome para o botão do campo, e
+ * o id para o campo escondido, que é o que vai no POST.
+ *
+ * Fica aqui, e não dentro de um dos formulários, porque as telas de calendário
+ * e de eventos globais têm dois — o de categoria do evento e o de tipo do
+ * feriado — e cada formulário registrando o seu ligaria só o primeiro da página.
+ * Nada aqui usa id: tudo se resolve dentro da própria caixa.
+ */
+(function () {
+  document.querySelectorAll('.seletor-categoria').forEach(function (caixa) {
+    var botao  = caixa.querySelector('[data-bs-toggle="dropdown"]'),
+        campo  = caixa.querySelector('input[type="hidden"]'),
+        quadro = botao.querySelector('.retangulo-cor'),
+        rotulo = botao.querySelector('.rotulo');
+
+    caixa.querySelectorAll('.dropdown-item').forEach(function (item) {
+      item.addEventListener('click', function () {
+        var cor = item.dataset.cor || '';
+
+        campo.value        = item.dataset.valor || '';
+        rotulo.textContent = item.dataset.nome;
+        quadro.style.background = cor;
+        quadro.classList.toggle('sem-cor', cor === '');
+
+        caixa.querySelectorAll('.dropdown-item').forEach(function (a) {
+          a.classList.remove('active');
+          a.setAttribute('aria-selected', 'false');
+        });
+        item.classList.add('active');
+        item.setAttribute('aria-selected', 'true');
+      });
+    });
+  });
+})();
+
 // Modal que já nasce aberto: o servidor marca data-abrir quando a página vem de
 // "editar" ou do botão "novo", com o formulário montado pronto.
 (function () {

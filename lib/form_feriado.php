@@ -52,15 +52,46 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
               <div class="form-text">Sai assim na lista do mês e no calendário impresso.</div>
             </div>
             <div class="col-md-4">
-              <label class="form-label">Tipo</label>
-              <select name="categoria_id" class="form-select">
-                <?php foreach ($f_cats as $f_nome => $f_c): ?>
-                  <option value="<?= (int) $f_c['id'] ?>"
-                          <?= (int) ($feriadoEdit['categoria_id'] ?? 0) === (int) $f_c['id'] ? 'selected' : '' ?>>
-                    <?= e($f_nome) ?>
-                  </option>
-                <?php endforeach; ?>
-              </select>
+              <?php
+              // O mesmo dropdown do campo de categoria do evento: a cor de uma
+              // <option> é sugestão que o Firefox no Linux ignora, então cada
+              // linha é HTML de verdade e o retângulo aparece em todo navegador.
+              // O tipo é o que decide a cor do dia na grade — vê-la aqui evita
+              // escolher a origem errada da norma e só descobrir no papel.
+              //
+              // Sem linha "sem cor": o tipo é obrigatório, e o primeiro dos
+              // quatro é o que vale quando o feriado é novo.
+              $f_atual = $f_cats[array_key_first($f_cats)] ?? null;
+              foreach ($f_cats as $f_c) {
+                  if ((int) ($feriadoEdit['categoria_id'] ?? 0) === (int) $f_c['id']) {
+                      $f_atual = $f_c;
+                  }
+              }
+              ?>
+              <label class="form-label" for="botaoTipoFeriado">Tipo</label>
+              <div class="dropdown seletor-categoria">
+                <button type="button" class="form-select text-start dropdown-toggle-sem-seta"
+                        id="botaoTipoFeriado" data-bs-toggle="dropdown" data-bs-display="static"
+                        aria-haspopup="listbox" aria-expanded="false">
+                  <span class="retangulo-cor" style="background:<?= e($f_atual['cor'] ?? '#ffffff') ?>"></span>
+                  <span class="rotulo"><?= e($f_atual['nome'] ?? 'Feriado Nacional') ?></span>
+                </button>
+                <ul class="dropdown-menu w-100" role="listbox" aria-labelledby="botaoTipoFeriado">
+                  <?php foreach ($f_cats as $f_nome => $f_c): ?>
+                    <?php $f_eh = (int) ($f_atual['id'] ?? 0) === (int) $f_c['id']; ?>
+                    <li>
+                      <button type="button" class="dropdown-item<?= $f_eh ? ' active' : '' ?>"
+                              role="option" aria-selected="<?= $f_eh ? 'true' : 'false' ?>"
+                              data-valor="<?= (int) $f_c['id'] ?>" data-cor="<?= e($f_c['cor']) ?>"
+                              data-nome="<?= e($f_nome) ?>">
+                        <span class="retangulo-cor" style="background:<?= e($f_c['cor']) ?>"></span>
+                        <span><?= e($f_nome) ?></span>
+                      </button>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+                <input type="hidden" name="categoria_id" value="<?= (int) ($f_atual['id'] ?? 0) ?>">
+              </div>
               <div class="form-text">
                 A origem da norma — sai no papel depois do nome. A
                 <a href="configuracoes.php">cor de cada tipo</a> fica em Configurações.
@@ -241,4 +272,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <?php endif; ?>
-<?php unset($f_abrir, $f_cats, $f_tipo, $f_dia, $f_mes, $f_nome, $f_c, $f_ini); ?>
+<?php unset($f_abrir, $f_cats, $f_tipo, $f_dia, $f_mes, $f_nome, $f_c, $f_ini, $f_atual, $f_eh); ?>

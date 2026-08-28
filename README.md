@@ -157,7 +157,9 @@ Para conferir o que está carregado — as três precisam aparecer:
    Corrigir um feriado conserta todos os anos de uma vez.
    A data fixa se escolhe num **calendário de um mês**, sem ano: o que se grava
    é dia e mês, e fevereiro sempre mostra 29 dias, que é como se cadastra um
-   feriado que só existe em ano bissexto.
+   feriado que só existe em ano bissexto. O *tipo* — a origem da norma — sai num
+   dropdown que **mostra a cor de cada um**, a mesma do campo de categoria do
+   evento: é o tipo que decide a cor do dia na grade.
    Os feriados aparecem na grade e na lista de cada mês com a marca *feriado*, e
    **se alteram de qualquer uma das três telas** que mostram a grade do ano — o
    formulário abre em modal ali mesmo, sem trocar de tela. Excluir, não: isso é
