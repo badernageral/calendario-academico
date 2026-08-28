@@ -144,7 +144,13 @@ ul.eventos li:first-child { border-top: 0.5pt solid var(--borda); }
 
 /* ------------------------------------------------- resumo e legenda */
 
+/* A largura das três colunas de mês com os dois vãos entre elas: é a mesma
+   caixa que o .trimestre ocupa nas outras páginas, e centrá-la faz o resumo
+   começar exatamente onde começa o primeiro mês. Sem isto ele encostava na
+   margem da folha, 95px à esquerda de todo o resto do documento. */
 .fecho {
+  width: calc(var(--cel) * 21 + var(--gap) * 2);
+  margin-inline: auto;
   display: flex;
   gap: 24pt;
   align-items: flex-start;
