@@ -14,6 +14,7 @@ function head(string $titulo, string $ativo = ''): void
         ['niveis.php',        'Níveis',          'bi-diagram-3',      'niveis'],
         ['categorias.php',    'Legenda',         'bi-palette',        'categorias'],
         ['configuracoes.php', 'Configurações',   'bi-gear',           'configuracoes'],
+        ['usuarios.php',      'Usuários',        'bi-people',         'usuarios'],
         ['backup.php',        'Backup',          'bi-shield-check',   'backup'],
     ];
     ?><!doctype html>

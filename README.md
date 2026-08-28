@@ -366,6 +366,7 @@ divergência.
 
 ## Estrutura
 
+    usuarios.php            cadastro de quem entra no sistema
     login.php               entrada no sistema
     setup.php               cadastro do primeiro usuário (só sem nenhum)
     sair.php                encerra a sessão (POST)
@@ -440,8 +441,17 @@ e pelo mesmo motivo: uma tela nova nasce protegida sem ninguém lembrar de
 protegê-la. Pela linha de comando ele não vale, que é por onde os testes entram.
 
 A senha é guardada como `password_hash()` (bcrypt), nunca em claro, e o id da
-sessão é regenerado no login. **Não há tela de gestão de usuários**: para
-acrescentar outro ou trocar uma senha, hoje é pelo banco.
+sessão é regenerado no login.
+
+**Usuários** é o cadastro de quem entra: nome, login, senha e a marca de ativo.
+Na edição, deixar a senha em branco mantém a que já existe — é assim que se
+corrige um nome sem saber a senha de ninguém, e é por ali que cada um troca a
+própria. Duas coisas o sistema não deixa fazer, porque trancariam a porta por
+fora: **excluir a si mesmo** e **tirar de circulação o último usuário ativo**. O
+inativo mantém o cadastro e perde o acesso.
+
+Multiusuário só na entrada: **todos veem e alteram os mesmos dados**, sem dono
+nem histórico de quem mexeu no quê.
 
 ## Mudanças no banco
 

@@ -153,6 +153,8 @@ $telas = [
     'categorias.php',
     'configuracoes.php',
     'niveis.php',
+    'usuarios.php',
+    'usuarios.php?novo=1',
     'backup.php',
 ];
 

@@ -655,6 +655,37 @@ confere('e dois usuários não dividem o mesmo login', (function () use ($db) {
 confere('a senha curta é recusada, a de oito passa',
     [senhaFraca('1234567') !== '', senhaFraca('12345678') !== ''], [true, false]);
 
+// Trancar o sistema por fora é o único estrago que esta tela pode fazer: é o
+// que a contagem de outros ativos existe para impedir.
+confere('com um usuário só, não há outro ativo para segurar a porta',
+    outrosUsuariosAtivos($db, (int) $novo['id']), 0);
+$outro = criarUsuario($db, 'Maria', 'maria', 'senha12345');
+confere('com dois, cada um tem o outro', [
+    outrosUsuariosAtivos($db, (int) $novo['id']),
+    outrosUsuariosAtivos($db, (int) $outro['id']),
+], [1, 1]);
+// Inativo não segura porta nenhuma: quem está desativado não consegue entrar.
+confere('mas um inativo não conta', (function () use ($db, $novo, $outro) {
+    $db->prepare('UPDATE usuarios SET ativo = 0 WHERE id = ?')->execute([(int) $outro['id']]);
+    $n = outrosUsuariosAtivos($db, (int) $novo['id']);
+    $db->prepare('UPDATE usuarios SET ativo = 1 WHERE id = ?')->execute([(int) $outro['id']]);
+    return $n;
+})(), 0);
+
+// Senha vazia na edição quer dizer "não mexe": é como se troca o nome de alguém
+// sem saber a senha dele.
+confere('salvar sem senha mantém a que havia', (function () use ($db, $outro) {
+    salvarUsuario($db, (int) $outro['id'], 'Maria Silva', 'maria', '', true);
+    return [
+        autenticar($db, 'maria', 'senha12345')['nome'] ?? null,
+        password_verify('', (string) $db->query("SELECT senha_hash FROM usuarios WHERE usuario='maria'")->fetchColumn()),
+    ];
+})(), ['Maria Silva', false]);
+confere('e com senha, a antiga deixa de valer', (function () use ($db, $outro) {
+    salvarUsuario($db, (int) $outro['id'], 'Maria Silva', 'maria', 'outrasenha12', true);
+    return [autenticar($db, 'maria', 'senha12345'), autenticar($db, 'maria', 'outrasenha12')['usuario'] ?? null];
+})(), [null, 'maria']);
+
 grupo('Migrações do banco');
 $db = bancoLimpo();
 confere('um banco novo tem a tabela do histórico',

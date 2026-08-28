@@ -92,6 +92,30 @@ function criarUsuario(PDO $db, string $nome, string $usuario, string $senha): ar
 }
 
 /**
+ * Quantos usuários ainda poderiam entrar se este saísse de cena — excluído ou
+ * desativado. Zero significa que ele é o último, e deixá-lo sair trancaria o
+ * sistema para todo mundo, sem ninguém do lado de dentro para reabrir.
+ */
+function outrosUsuariosAtivos(PDO $db, int $exceto): int
+{
+    $st = $db->prepare('SELECT COUNT(*) FROM usuarios WHERE ativo = 1 AND id <> ?');
+    $st->execute([$exceto]);
+    return (int) $st->fetchColumn();
+}
+
+/** Troca os dados de um usuário. Senha vazia = a que ele já tem fica. */
+function salvarUsuario(PDO $db, int $id, string $nome, string $usuario, string $senha, bool $ativo): void
+{
+    if ($senha === '') {
+        $db->prepare('UPDATE usuarios SET nome=?, usuario=?, ativo=? WHERE id=?')
+           ->execute([$nome, $usuario, $ativo ? 1 : 0, $id]);
+        return;
+    }
+    $db->prepare('UPDATE usuarios SET nome=?, usuario=?, ativo=?, senha_hash=? WHERE id=?')
+       ->execute([$nome, $usuario, $ativo ? 1 : 0, password_hash($senha, PASSWORD_DEFAULT), $id]);
+}
+
+/**
  * O que uma senha precisa ter. Devolve o motivo da recusa, ou string vazia.
  *
  * Oito caracteres, e só. Um sistema de um campus, sem exposição à internet, não
