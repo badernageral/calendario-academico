@@ -219,7 +219,7 @@ Para conferir o que está carregado — as três precisam aparecer:
    O marco de bimestre não tem ×, e o clique nele abre os **dados do
    calendário** — que é de onde ele sai. Todo evento entra nessa lista — a mesma
    que sai impressa. As quatro caixas de *Exibir* — *Feriados*, *Eventos
-   globais*, *Locais* e *Automáticos* — tiram cada tipo da vista sem mexer na
+   globais*, *Eventos locais* e *Automáticos* — tiram cada tipo da vista sem mexer na
    contagem de dias letivos, que continua contando com tudo. O que o servidor
    recusar ao salvar aparece **dentro do próprio modal**, junto do que foi
    digitado, e não no topo da página, atrás dele.

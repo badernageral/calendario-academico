@@ -155,7 +155,7 @@ unset($g_lista, $g_ev, $g_ini);
         <div class="form-check mb-0">
           <input class="form-check-input" type="checkbox" name="locais" value="1" id="verLocais"
                  <?= $g_verLocais ? 'checked' : '' ?> onchange="this.form.submit()">
-          <label class="form-check-label small" for="verLocais">Locais</label>
+          <label class="form-check-label small" for="verLocais">Eventos locais</label>
         </div>
         <div class="form-check mb-0">
           <input class="form-check-input" type="checkbox" name="auto" value="1" id="verAuto"
