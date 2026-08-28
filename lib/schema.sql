@@ -13,8 +13,7 @@ CREATE TABLE IF NOT EXISTS config (
 CREATE TABLE IF NOT EXISTS niveis (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
     chave TEXT NOT NULL UNIQUE,                 -- ex.: superior, integrado
-    nome  TEXT NOT NULL,                        -- ex.: Técnico Integrado
-    ordem INTEGER NOT NULL DEFAULT 0
+    nome  TEXT NOT NULL                         -- ex.: Técnico Integrado
 );
 
 CREATE TABLE IF NOT EXISTS cursos (

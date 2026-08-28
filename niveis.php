@@ -17,8 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id) {
             // A chave fica como está: ela é a referência gravada nos cursos e
             // nos eventos, e trocá-la deixaria os dois apontando para o vazio.
-            $db->prepare('UPDATE niveis SET nome=?, ordem=? WHERE id=?')
-               ->execute([$nome, postInt('ordem', 0), $id]);
+            $db->prepare('UPDATE niveis SET nome=? WHERE id=?')->execute([$nome, $id]);
             flash('Nível atualizado.');
         } else {
             $chave = chaveNivel($nome);
@@ -32,8 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('Já existe um nível com esse nome.', 'erro');
                 redirect('niveis.php?novo=1');
             }
-            $db->prepare('INSERT INTO niveis (chave, nome, ordem) VALUES (?,?,?)')
-               ->execute([$chave, $nome, postInt('ordem', 0)]);
+            $db->prepare('INSERT INTO niveis (chave, nome) VALUES (?,?)')->execute([$chave, $nome]);
             flash('Nível cadastrado.');
         }
         redirect('niveis.php');
@@ -93,7 +91,8 @@ if ($idEdit = getInt('editar')) {
     $edit = $st->fetch() ?: null;
 }
 
-$niveis = $db->query('SELECT * FROM niveis ORDER BY ordem, nome')->fetchAll();
+$niveis = $db->query('SELECT * FROM niveis')->fetchAll();
+usort($niveis, static fn ($a, $b) => compararNomes($a['nome'], $b['nome']));
 foreach ($niveis as &$n) {
     $n['uso'] = usoDoNivel($db, $n['chave']);
 }
@@ -128,14 +127,12 @@ head('Níveis', 'niveis');
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
-          <tr><th>Nome</th><th class="text-center">Ordem</th>
-              <th class="text-center">Em uso</th><th class="text-end">Ações</th></tr>
+          <tr><th>Nome</th><th class="text-center">Em uso</th><th class="text-end">Ações</th></tr>
         </thead>
         <tbody>
         <?php foreach ($niveis as $n): ?>
           <tr>
             <td class="fw-semibold"><?= e($n['nome']) ?></td>
-            <td class="text-center"><?= (int) $n['ordem'] ?></td>
             <td class="text-center">
               <?php
               // Só o que existe: evento restrito a nível é a exceção, então na
@@ -190,18 +187,14 @@ head('Níveis', 'niveis');
           <input type="hidden" name="acao" value="salvar">
           <input type="hidden" name="id" value="<?= (int) ($edit['id'] ?? 0) ?>">
           <div class="row g-3">
-            <div class="col-md-8">
+            <div class="col-12">
               <label class="form-label">Nome</label>
               <input name="nome" class="form-control" required value="<?= e($edit['nome'] ?? '') ?>"
                      placeholder="Técnico Integrado">
-              <?php if ($edit): ?>
-                <div class="form-text">Renomear é seguro: os cursos e eventos ligados a ele continuam iguais.</div>
-              <?php endif; ?>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Ordem</label>
-              <input type="number" name="ordem" class="form-control" value="<?= (int) ($edit['ordem'] ?? 0) ?>">
-              <div class="form-text">Posição nas listas.</div>
+              <div class="form-text">
+                <?php if ($edit): ?>Renomear é seguro: os cursos e eventos ligados a ele continuam iguais.
+                <?php else: ?>As listas mostram os níveis em ordem alfabética.<?php endif; ?>
+              </div>
             </div>
           </div>
         </div>

@@ -119,6 +119,19 @@ function migrar(PDO $pdo): void
         }
     }
 
+    // O nível de ensino tinha uma posição digitada para ordenar as listas. Eram
+    // quatro níveis e um número a manter à mão em cada um: a ordem alfabética
+    // diz a mesma coisa sem pedir nada. DROP COLUMN existe no SQLite desde a
+    // 3.35; num mais antigo a coluna fica onde está, sem uso.
+    $colunasNiveis = $pdo->query('PRAGMA table_info(niveis)')->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (in_array('ordem', $colunasNiveis, true)) {
+        try {
+            $pdo->exec('ALTER TABLE niveis DROP COLUMN ordem');
+        } catch (PDOException $e) {
+            // SQLite velho demais: deixa a coluna quieta.
+        }
+    }
+
     // Um calendário tem no máximo um período de cada tipo e número. O índice
     // único diz isso ao banco: salvarPeriodos() apaga e reinsere numa
     // transação, mas dois pedidos ao mesmo tempo passariam por fora dela e
@@ -421,12 +434,12 @@ function semearFeriados(PDO $pdo): void
 /** Os níveis que a instituição já usava antes de a tela existir. */
 function semearNiveis(PDO $pdo): void
 {
-    $st = $pdo->prepare('INSERT INTO niveis (chave, nome, ordem) VALUES (?,?,?)');
+    $st = $pdo->prepare('INSERT INTO niveis (chave, nome) VALUES (?,?)');
     foreach ([
-        ['superior',     'Superior',             1],
-        ['integrado',    'Técnico Integrado',    2],
-        ['concomitante', 'Técnico Concomitante', 3],
-        ['subsequente',  'Técnico Subsequente',  4],
+        ['superior',     'Superior'],
+        ['integrado',    'Técnico Integrado'],
+        ['concomitante', 'Técnico Concomitante'],
+        ['subsequente',  'Técnico Subsequente'],
     ] as $n) {
         $st->execute($n);
     }

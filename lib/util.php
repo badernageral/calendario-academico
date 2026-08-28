@@ -165,15 +165,57 @@ function flash(?string $msg = null, string $tipo = 'ok'): ?array
     return $f;
 }
 
-/** Níveis de ensino cadastrados: chave gravada => rótulo mostrado. */
+/**
+ * Compara dois nomes como um leitor os ordenaria: sem ligar para maiúscula nem
+ * para acento. O ORDER BY do SQLite compara byte a byte — "Pós-graduação"
+ * cairia depois de "Pré-vestibular", porque o "ó" em UTF-8 começa num byte
+ * maior que o "r". Sem ICU no PHP daqui, a saída é tirar o acento antes de
+ * comparar, que para o português resolve a ordenação.
+ */
+function compararNomes(string $a, string $b): int
+{
+    return strcmp(chaveDeOrdem($a), chaveDeOrdem($b));
+}
+
+/**
+ * O nome reduzido ao que interessa para ordenar: sem acento e em minúsculas.
+ * O acento sai primeiro, nas duas caixas — strtolower() é byte a byte e não
+ * alcança um "É", que sobraria maiúsculo e ordenaria por fora.
+ */
+function chaveDeOrdem(string $s): string
+{
+    static $mapa = [
+        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+        'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+        'ç' => 'c', 'ñ' => 'n',
+        'Á' => 'a', 'À' => 'a', 'Â' => 'a', 'Ã' => 'a', 'Ä' => 'a',
+        'É' => 'e', 'È' => 'e', 'Ê' => 'e', 'Ë' => 'e',
+        'Í' => 'i', 'Ì' => 'i', 'Î' => 'i', 'Ï' => 'i',
+        'Ó' => 'o', 'Ò' => 'o', 'Ô' => 'o', 'Õ' => 'o', 'Ö' => 'o',
+        'Ú' => 'u', 'Ù' => 'u', 'Û' => 'u', 'Ü' => 'u',
+        'Ç' => 'c', 'Ñ' => 'n',
+    ];
+    return strtolower(strtr($s, $mapa));
+}
+
+/**
+ * Níveis de ensino cadastrados: chave gravada => rótulo mostrado, em ordem
+ * alfabética. Foi uma posição digitada em cada nível até deixar de ser: eram
+ * quatro nomes e um número a manter à mão, e a ordem alfabética já os deixa
+ * onde se espera encontrá-los.
+ */
 function niveisCurso(): array
 {
     static $cache = null;
     if ($cache === null) {
         $cache = [];
-        foreach (db()->query('SELECT chave, nome FROM niveis ORDER BY ordem, nome') as $r) {
+        foreach (db()->query('SELECT chave, nome FROM niveis') as $r) {
             $cache[$r['chave']] = $r['nome'];
         }
+        uasort($cache, 'compararNomes');
     }
     return $cache;
 }

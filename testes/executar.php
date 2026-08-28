@@ -609,6 +609,26 @@ confere('e voltam também', deslocarAno('2026-03-15', -1), '2025-03-15');
 confere('29 de fevereiro encosta no 28 fora do bissexto', deslocarAno('2024-02-29', 1), '2025-02-28');
 confere('e continua 29 quando o ano de destino é bissexto', deslocarAno('2024-02-29', 4), '2028-02-29');
 
+grupo('Níveis de ensino em ordem alfabética');
+$db = bancoLimpo();
+// A posição era digitada em cada nível; agora sai do nome. Os quatro de fábrica
+// caem na mesma ordem de antes, que é o que já se esperava ver.
+confere('os quatro de fábrica saem em ordem',
+    array_values(niveisCurso()),
+    ['Superior', 'Técnico Concomitante', 'Técnico Integrado', 'Técnico Subsequente']);
+confere('a coluna ordem não existe mais',
+    in_array('ordem', $db->query('PRAGMA table_info(niveis)')->fetchAll(PDO::FETCH_COLUMN, 1), true),
+    false);
+// O ORDER BY do SQLite compara byte a byte, e em UTF-8 o "ó" começa num byte
+// maior que qualquer letra sem acento: "Pós" cairia depois de "Pré", e os dois
+// depois de "Superior".
+confere('o acento não joga o nome para o fim da lista', (function () {
+    $nomes = ['Superior', 'Pré-vestibular', 'Pós-graduação', 'Ensino Médio'];
+    usort($nomes, 'compararNomes');
+    return $nomes;
+})(), ['Ensino Médio', 'Pós-graduação', 'Pré-vestibular', 'Superior']);
+confere('e maiúscula não separa nomes iguais', compararNomes('técnico', 'TÉCNICO'), 0);
+
 grupo('Regime das disciplinas do curso');
 $db = bancoLimpo();
 confere('só existem os dois regimes', array_keys(regimesCurso()), ['semestral', 'anual']);
