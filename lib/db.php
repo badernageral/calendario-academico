@@ -333,7 +333,10 @@ function seed(PDO $pdo): void
     $cats = [
         // Exame Final é neutro: exames dentro do semestre continuam contando como
         // letivos; os que ficam fora já são excluídos pelos limites do semestre.
-        ['Exame Final',                                   '#7767d7', '#ffffff', null, 80, 1, 1],
+        // 85, e não 80: em 80 ele empataria com o Recesso, e o motor pinta com
+        // `>` estrito — no empate a cor do dia sairia da ordem em que os eventos
+        // foram lidos, não de uma regra.
+        ['Exame Final',                                   '#7767d7', '#ffffff', null, 85, 1, 1],
         // Mesma cor e mesmo efeito nos três: o que muda é a origem da norma —
         // federal, estadual ou municipal.
         ['Feriado Nacional',                              '#ff0000', '#000000', 0,    99, 1, 2],
@@ -343,13 +346,13 @@ function seed(PDO $pdo): void
         ['Período de culminância de Projetos Pedagógicos','#ffff00', '#000000', null, 45, 1, 6],
         ['Dias Escolares Não Letivos',                    '#d0cece', '#000000', 0,    70, 1, 7],
         ['Ponto Facultativo',                             '#00b050', '#000000', 0,    96, 1, 8],
-        ['Planejamento Pedagógico',                       '#1155cc', '#ffffff', 0,    65, 1, 10],
+        ['Planejamento Pedagógico',                       '#1155cc', '#ffffff', 0,    65, 1, 9],
         // Recesso: cinza como os Dias Escolares Não Letivos, e como eles não
         // conta. Vem com ordem 0 porque abre a legenda impressa.
         ['Recesso',                                       '#d0cece', '#000000', 0,    80, 1, 0],
         // Neutra: o primeiro e o último dia de um bimestre são dias de aula
         // normais — a categoria só os pinta. A cor se troca em Configurações.
-        [CAT_SEMESTRE,                                    '#9bc2e6', '#000000', null, 50, 1, 11],
+        [CAT_SEMESTRE,                                    '#9bc2e6', '#000000', null, 50, 1, 10],
     ];
     $st = $pdo->prepare(
         'INSERT INTO categorias (nome, cor, cor_texto, letivo, prioridade, na_legenda, ordem)

@@ -21,9 +21,17 @@ function maiusculas(string $s): string
     return strtoupper(strtr($s, $acentos));
 }
 
+/**
+ * Um campo do POST, sem espaço nas pontas e com fim de linha só \n.
+ *
+ * O HTML manda o conteúdo de um <textarea> com \r\n, e quem lê esses campos
+ * parte por \n — cada linha ficava com um \r pendurado no fim, que ia parar
+ * dentro do cabeçalho do calendário impresso. Nos campos de uma linha só a
+ * troca não encontra nada e não custa nada.
+ */
 function post(string $k, string $padrao = ''): string
 {
-    return trim((string) ($_POST[$k] ?? $padrao));
+    return trim(str_replace("\r\n", "\n", (string) ($_POST[$k] ?? $padrao)));
 }
 
 function postInt(string $k, ?int $padrao = null): ?int

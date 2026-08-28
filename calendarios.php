@@ -163,7 +163,7 @@ head('Calendários', 'calendarios');
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
-          <tr><th>Curso</th><th>Ano</th><th>Situação</th><th class="text-center">Eventos</th><th class="text-end">Ações</th></tr>
+          <tr><th>Curso</th><th>Ano</th><th>Situação</th><th class="text-center">Eventos locais</th><th class="text-end">Ações</th></tr>
         </thead>
         <tbody>
         <?php foreach ($cals as $c): ?>

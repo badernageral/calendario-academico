@@ -130,7 +130,7 @@ if ($c_novo) {
                 <select name="copiar_de" class="form-select">
                   <option value="">— começar vazio —</option>
                   <?php foreach ($cals as $c_c): ?>
-                    <option value="<?= $c_c['id'] ?>"><?= e($c_c['curso_nome']) ?> · <?= $c_c['ano'] ?> (<?= $c_c['n_eventos'] ?> eventos)</option>
+                    <option value="<?= $c_c['id'] ?>"><?= e($c_c['curso_nome']) ?> · <?= $c_c['ano'] ?> (<?= $c_c['n_eventos'] ?> eventos locais)</option>
                   <?php endforeach; ?>
                 </select>
                 <div class="form-text">As datas entram deslocadas para o ano novo. Só na criação.</div>
