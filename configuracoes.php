@@ -153,7 +153,7 @@ head('Configurações', 'configuracoes');
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="negrito_periodo" id="negrito_periodo"
                    <?= cfg('negrito_periodo') === '1' ? 'checked' : '' ?>>
-            <label class="form-check-label" for="negrito_periodo">Escrever as quatro linhas em negrito</label>
+            <label class="form-check-label" for="negrito_periodo">Descrição do evento em negrito</label>
           </div>
           <div class="form-text">
             Vale na lista de cada mês, na tela e no papel. Desmarcado, elas saem com o mesmo peso
