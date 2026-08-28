@@ -89,20 +89,12 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
               </div>
             </div>
 
-            <div class="col-12">
-              <label class="form-label">Tipo de data</label>
-              <div class="d-flex flex-wrap gap-4">
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="tipo" value="fixo" id="tipo_fixo"
-                         <?= $f_tipo === 'fixo' ? 'checked' : '' ?>>
-                  <label class="form-check-label" for="tipo_fixo">Data fixa — cai no mesmo dia todo ano</label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="tipo" value="movel" id="tipo_movel"
-                         <?= $f_tipo === 'movel' ? 'checked' : '' ?>>
-                  <label class="form-check-label" for="tipo_movel">Móvel — anda com a Páscoa</label>
-                </div>
-              </div>
+            <div class="col-md-6">
+              <label class="form-label" for="tipoData">Tipo de data</label>
+              <select name="tipo" id="tipoData" class="form-select">
+                <option value="fixo"  <?= $f_tipo === 'fixo'  ? 'selected' : '' ?>>Data fixa — cai no mesmo dia todo ano</option>
+                <option value="movel" <?= $f_tipo === 'movel' ? 'selected' : '' ?>>Móvel — anda com a Páscoa</option>
+              </select>
             </div>
 
             <div class="col-12" id="camposFixo">
@@ -234,18 +226,17 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
   desenhar();
 })();
 
-// Só o par de campos do tipo escolhido fica em cena.
+// Só o campo do tipo escolhido fica em cena: o calendário do dia fixo ou o
+// deslocamento em dias da Páscoa.
 (function () {
-  var fixo  = document.getElementById('tipo_fixo'),
-      movel = document.getElementById('tipo_movel'),
-      cf    = document.getElementById('camposFixo'),
-      cm    = document.getElementById('camposMovel');
+  var tipo = document.getElementById('tipoData'),
+      cf   = document.getElementById('camposFixo'),
+      cm   = document.getElementById('camposMovel');
   function sincronizar() {
-    cf.style.display = fixo.checked ? '' : 'none';
-    cm.style.display = movel.checked ? '' : 'none';
+    cf.style.display = tipo.value === 'fixo'  ? '' : 'none';
+    cm.style.display = tipo.value === 'movel' ? '' : 'none';
   }
-  fixo.addEventListener('change', sincronizar);
-  movel.addEventListener('change', sincronizar);
+  tipo.addEventListener('change', sincronizar);
   sincronizar();
 })();
 </script>
