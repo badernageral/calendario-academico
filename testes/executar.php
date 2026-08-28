@@ -664,6 +664,49 @@ $db->exec('ALTER TABLE cursos DROP COLUMN teste');
 $db->exec('DELETE FROM migracoes');
 marcarMigracoesComoAplicadas($db);
 
+grupo('O que a importação de backup aceita');
+// motivoParaRecusar() vive em backup.php, que é uma tela: o teste lê o trecho
+// das funções e o avalia, para não disparar a tela inteira.
+(function () {
+    $src = (string) file_get_contents(__DIR__ . '/../backup.php');
+    $ini = strpos($src, 'const TABELAS_ESPERADAS');
+    eval(substr($src, $ini, strpos($src, '// ── Exportar') - $ini));
+})();
+$arquivo = static function (callable $ajusta): string {
+    $caminho = sys_get_temp_dir() . '/calendario-import-' . getmypid() . '-' . uniqid() . '.sqlite';
+    $antigo = getenv('CALENDARIO_DB');
+    putenv('CALENDARIO_DB=' . $caminho);
+    $GLOBALS['pdo_teste'] = null;
+    (new PDO('sqlite:' . $caminho))->exec('SELECT 1');
+    // monta um banco completo com o mesmo schema e seed da aplicação
+    $p = new PDO('sqlite:' . $caminho, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $p->exec((string) file_get_contents(__DIR__ . '/../lib/schema.sql'));
+    $p->exec("CREATE TABLE IF NOT EXISTS migracoes (nome TEXT PRIMARY KEY, aplicada_em TEXT NOT NULL DEFAULT (datetime('now')))");
+    $st = $p->prepare('INSERT INTO migracoes (nome) VALUES (?)');
+    foreach (array_keys(migracoes()) as $n) { $st->execute([$n]); }
+    $ajusta($p);
+    $p = null;
+    putenv('CALENDARIO_DB=' . $antigo);
+    register_shutdown_function(static fn () => @unlink($caminho));
+    return $caminho;
+};
+
+confere('um banco desta versão passa',
+    motivoParaRecusar($arquivo(static fn (PDO $p) => null)), '');
+// Sem a tabela do histórico não dá para saber de que versão o arquivo veio, e
+// todo banco criado da 1.0 em diante nasce com ela.
+confere('sem a tabela de migrações, não',
+    motivoParaRecusar($arquivo(static fn (PDO $p) => $p->exec('DROP TABLE migracoes'))),
+    'O arquivo é de uma versão anterior ao histórico de migrações e não pode mais ser restaurado.');
+// Nome que este código não conhece = backup de uma versão à frente. Restaurá-lo
+// poria um schema mais novo debaixo de uma aplicação mais velha.
+confere('com migração desconhecida, também não', str_starts_with(
+    motivoParaRecusar($arquivo(static fn (PDO $p) => $p->exec("INSERT INTO migracoes (nome) VALUES ('9999_futuro')"))),
+    'O arquivo vem de uma versão mais nova'), true);
+confere('e um sqlite de outro sistema, muito menos', str_starts_with(
+    motivoParaRecusar($arquivo(static fn (PDO $p) => $p->exec('DROP TABLE eventos'))),
+    'O arquivo não é um banco de calendário'), true);
+
 grupo('Negrito dos marcos de bimestre');
 $db  = bancoLimpo();
 $cal = calendarioBimestral($db, 'anual', BIMESTRES);

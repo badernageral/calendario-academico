@@ -7,16 +7,17 @@ define('DIR_BACKUPS', getenv('CALENDARIO_BACKUPS') ?: APP_ROOT . '/backups');
 
 /**
  * Tabelas que todo banco desta aplicação tem — serve de conferência na
- * importação. `periodos` entrou na lista porque é a única essencial que
- * migrar() não recria: sem ela, o arquivo passava e todos os calendários
- * perdiam os semestres em silêncio.
+ * importação.
  *
- * `niveis` e `feriados` ficam de fora de propósito. Elas nasceram depois, e
- * migrar() cria e semeia as duas — exigi-las aqui recusaria um backup antigo
- * que o sistema sabe restaurar.
+ * `migracoes` está na lista, e é ela que diz de que versão o arquivo veio. Todo
+ * banco criado da 1.0 em diante nasce com ela; um arquivo sem ela é de outro
+ * sistema, ou de uma versão anterior ao lançamento, que não existe mais em lugar
+ * nenhum. Recusar é melhor do que restaurar um schema que a aplicação de hoje
+ * não sabe ler e quebrar na primeira tela.
  */
 const TABELAS_ESPERADAS = [
-    'config', 'cursos', 'calendarios', 'categorias', 'eventos', 'evento_datas', 'periodos',
+    'config', 'cursos', 'calendarios', 'categorias', 'eventos', 'evento_datas',
+    'periodos', 'niveis', 'feriados', 'migracoes',
 ];
 
 /**
@@ -73,20 +74,42 @@ function caminhoLivre(string $prefixo): string
     return $base . '_' . bin2hex(random_bytes(4)) . '.sqlite';
 }
 
-/** Confere se o arquivo enviado é mesmo um banco desta aplicação. */
-function bancoValido(string $caminho): bool
+/**
+ * Confere se o arquivo enviado é mesmo um banco desta aplicação, e de uma versão
+ * que esta aplicação sabe ler.
+ *
+ * Devolve string vazia quando serve; senão, o motivo, para a tela dizer qual é.
+ */
+function motivoParaRecusar(string $caminho): string
 {
     try {
-        $pdo = new PDO('sqlite:' . $caminho);
+        $pdo = new PDO('sqlite:' . $caminho, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
         if ($pdo->query('PRAGMA integrity_check')->fetchColumn() !== 'ok') {
-            return false;
+            return 'O arquivo está corrompido.';
         }
         $tabelas = $pdo->query("SELECT name FROM sqlite_master WHERE type = 'table'")->fetchAll(PDO::FETCH_COLUMN);
+        $faltam  = array_diff(TABELAS_ESPERADAS, $tabelas);
+        if ($faltam) {
+            return in_array('migracoes', $faltam, true) && count($faltam) === 1
+                ? 'O arquivo é de uma versão anterior ao histórico de migrações e não pode mais ser restaurado.'
+                : 'O arquivo não é um banco de calendário: faltam as tabelas ' . implode(', ', $faltam) . '.';
+        }
+        // Migração que este código não conhece = backup de uma versão mais nova.
+        // Restaurá-lo poria um schema à frente da aplicação, que passaria a
+        // gravar sem saber o que mudou.
+        $adiante = array_diff(
+            $pdo->query('SELECT nome FROM migracoes')->fetchAll(PDO::FETCH_COLUMN),
+            array_keys(migracoes())
+        );
         $pdo = null;
+        if ($adiante) {
+            return 'O arquivo vem de uma versão mais nova do sistema (' . implode(', ', $adiante)
+                 . '). Atualize antes de restaurá-lo.';
+        }
     } catch (Throwable $e) {
-        return false;
+        return 'O arquivo não pôde ser lido como banco SQLite.';
     }
-    return !array_diff(TABELAS_ESPERADAS, $tabelas);
+    return '';
 }
 
 // ── Exportar: gera o snapshot, guarda em backups/ e manda baixar ────────────
@@ -122,10 +145,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'importar') {
         flash('O arquivo deve ter a extensão .sqlite.', 'erro');
         redirect('backup.php');
     }
-    // Confere antes de tocar no banco atual: arquivo corrompido ou de outro
-    // sistema derrubaria a aplicação inteira.
-    if (!bancoValido($up['tmp_name'])) {
-        flash('O arquivo enviado não é um banco de calendário válido.', 'erro');
+    // Confere antes de tocar no banco atual: arquivo corrompido, de outro
+    // sistema ou de outra versão derrubaria a aplicação inteira.
+    if (($motivo = motivoParaRecusar($up['tmp_name'])) !== '') {
+        flash($motivo, 'erro');
         redirect('backup.php');
     }
 
@@ -141,7 +164,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'importar') {
     @unlink(DB_PATH . '-wal');
     @unlink(DB_PATH . '-shm');
 
-    flash('Backup importado. O estado anterior ficou guardado em backups/' . basename($seguranca) . '.');
+    // As migrações que faltam entram agora: o arquivo pode ser de uma versão
+    // anterior a esta, e quem importou tem de sair daqui com o banco em dia.
+    // A conexão aberta ainda aponta para o arquivo que foi substituído, então é
+    // uma nova, direto no caminho do banco.
+    $pdo = new PDO('sqlite:' . DB_PATH, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $pdo->exec('PRAGMA foreign_keys = ON');
+    $faltavam = count(array_diff(array_keys(migracoes()), migracoesAplicadas($pdo)));
+    migrar($pdo);
+    $pdo = null;
+
+    flash('Backup importado' . ($faltavam ? ", com $faltavam migração(ões) aplicada(s)" : '')
+        . '. O estado anterior ficou guardado em backups/' . basename($seguranca) . '.');
     redirect('backup.php');
 }
 

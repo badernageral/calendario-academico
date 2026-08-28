@@ -429,6 +429,12 @@ em que cada item roda **uma vez**, dentro de uma transação, e o nome fica
 gravado na tabela `migracoes` no mesmo commit. Um banco recém-criado nasce com
 todas marcadas como aplicadas — ele já saiu do schema com elas dentro.
 
+A tabela `migracoes` é a versão do banco, e mais precisa que um número: ela diz
+exatamente quais mudanças estão dentro. A importação de backup se apoia nela —
+recusa um arquivo sem ela (anterior ao lançamento) e um com nome que este código
+não conhece (de uma versão mais nova), e aplica o que faltar assim que o arquivo
+entra, sem esperar a próxima tela.
+
 Ao mudar o schema, **mexa nos dois**: a migração, para os bancos que existem, e
 o `schema.sql`, para os que ainda vão nascer. Uma migração já lançada não se
 edita nem se apaga — quem já a rodou não a roda de novo; para corrigir, escreva
