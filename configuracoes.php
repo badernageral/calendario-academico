@@ -211,8 +211,7 @@ head('Configurações', 'configuracoes');
     </div>
     <div class="card-body">
       <p class="small text-muted">
-        As cores da grade que não vêm da legenda. Um dia com evento é pintado pela categoria dele;
-        estas valem para o resto — e para o cabeçalho e a faixa do mês, sempre.
+        As cores da grade que não vêm da legenda.
       </p>
       <div class="row g-3">
         <?php foreach ([
