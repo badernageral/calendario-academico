@@ -14,6 +14,19 @@
 }
 
 /* ── Layout ────────────────────────────────── */
+/* Enquanto um modal está aberto, o Bootstrap põe `overflow: hidden` no <body>,
+   inline, para a página atrás não rolar junto. Com o <html> em `visible`, esse
+   overflow não fica no body: a regra do CSS manda a viewport herdá-lo dele — e
+   uma viewport sem rolagem tem a posição grampeada em zero. Abrir qualquer
+   modal jogava a página para o topo, e fechá-lo já não tinha para onde voltar.
+
+   Dar um overflow explícito ao <html> corta essa herança: o `hidden` passa a
+   valer para a caixa do body, que não rola, e a viewport continua onde estava.
+   O padding que vem junto compensa uma barra de rolagem que agora não some, e
+   sem isso o conteúdo dava um salto de 15px para o lado ao abrir o modal. */
+html { overflow-y: auto; }
+body.modal-open { padding-right: 0 !important; }
+
 body {
   background: #f1f5f9;
   font-family: 'Segoe UI', system-ui, sans-serif;
