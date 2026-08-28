@@ -254,11 +254,26 @@ unset($g_lista, $g_ev, $g_ini);
                   <span class="marca"><?= e(niveisRotulo($g_ev['nivel'])) ?></span>
                 <?php endif; ?>
               <?= $g_editavel ? '</a>' : '</span>' ?>
-              <?php if (!$g_feriado && !$g_auto && ($g_global || !$g_base)): ?>
-              <form method="post" onsubmit="return confirm('Excluir este evento?')">
+              <?php
+              // O X aparece onde a exclusão é desta tela: o evento na tela que o
+              // cadastra, o feriado no cadastro de Feriados. Um marco de
+              // bimestre nunca — ele sai das datas do calendário, não daqui.
+              //
+              // Apagar um feriado é outra conversa: ele não é do ano em foco,
+              // vale para todos, e por isso o aviso diz isso antes. O texto vai
+              // por json_encode para um nome com apóstrofo não partir a string
+              // do confirm().
+              $g_apagavel = $g_feriado ? $g_feriados : (!$g_auto && ($g_global || !$g_base));
+              $g_aviso    = $g_feriado
+                  ? 'Excluir ' . $g_ev['descricao'] . '? Ele sai dos calendários de todos os anos.'
+                  : 'Excluir este evento?';
+              ?>
+              <?php if ($g_apagavel): ?>
+              <form method="post" onsubmit="return confirm(<?= e(json_encode($g_aviso, JSON_UNESCAPED_UNICODE)) ?>)">
                 <?= csrfCampo() ?>
-                <input type="hidden" name="acao" value="excluir_evento">
-                <input type="hidden" name="id" value="<?= (int) $g_ev['id'] ?>">
+                <input type="hidden" name="acao" value="<?= $g_feriado ? 'excluir' : 'excluir_evento' ?>">
+                <input type="hidden" name="id" value="<?= (int) ($g_feriado ? $g_ev['feriado_id'] : $g_ev['id']) ?>">
+                <?php if ($g_feriado): ?><input type="hidden" name="ano" value="<?= (int) $ano ?>"><?php endif; ?>
                 <button class="apagar" title="Excluir"><i class="bi bi-x-lg"></i></button>
               </form>
               <?php endif; ?>

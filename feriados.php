@@ -65,7 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'excluir') {
         $db->prepare('DELETE FROM feriados WHERE id = ?')->execute([$id]);
         flash('Feriado excluído. Ele sai dos calendários de todos os anos.');
-        redirect('feriados.php');
+        // O X está na grade de um ano: é para esse ano que se volta.
+        redirect('feriados.php' . (postInt('ano') ? '?ano=' . postInt('ano') : ''));
     }
 }
 
@@ -120,7 +121,22 @@ head('Feriados', 'feriados');
       <?php if ($inativos): ?>
         <span class="ms-2">inativos:</span>
         <?php foreach ($inativos as $i): ?>
-          <a class="ms-1" href="feriados.php?ano=<?= $ano ?>&editar=<?= (int) $i['id'] ?>"><?= e($i['nome']) ?></a>
+          <?php // O inativo não vale para ano nenhum e por isso não aparece na
+                // grade — onde fica o X dos outros. Sem este, ele não teria como
+                // ser excluído. ?>
+          <span class="ms-1 text-nowrap">
+            <a href="feriados.php?ano=<?= $ano ?>&editar=<?= (int) $i['id'] ?>"><?= e($i['nome']) ?></a>
+            <form method="post" class="d-inline"
+                  onsubmit="return confirm(<?= e(json_encode('Excluir ' . $i['nome'] . '? Ele sai dos calendários de todos os anos.', JSON_UNESCAPED_UNICODE)) ?>)">
+              <?= csrfCampo() ?>
+              <input type="hidden" name="acao" value="excluir">
+              <input type="hidden" name="id" value="<?= (int) $i['id'] ?>">
+              <input type="hidden" name="ano" value="<?= $ano ?>">
+              <button class="btn btn-link btn-sm p-0 align-baseline text-secondary" title="Excluir">
+                <i class="bi bi-x-lg small"></i>
+              </button>
+            </form>
+          </span>
         <?php endforeach; ?>
       <?php endif; ?>
     </div>
@@ -231,11 +247,6 @@ head('Feriados', 'feriados');
 
         <div class="modal-footer">
           <?php if ($edit): ?>
-            <!-- O botão manda no formulário de exclusão, que fica fora deste
-                 (form dentro de form não existe em HTML). -->
-            <button type="submit" form="formExcluirFeriado" class="btn btn-outline-danger me-auto">
-              <i class="bi bi-trash me-1"></i>Excluir
-            </button>
             <a class="btn btn-outline-secondary" href="feriados.php?ano=<?= $ano ?>">Cancelar</a>
           <?php else: ?>
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -246,15 +257,6 @@ head('Feriados', 'feriados');
     </div>
   </div>
 </div>
-
-<?php if ($edit): ?>
-<form method="post" id="formExcluirFeriado"
-      onsubmit="return confirm('Excluir <?= e($edit['nome']) ?>? Ele sai dos calendários de todos os anos.')">
-  <?= csrfCampo() ?>
-  <input type="hidden" name="acao" value="excluir">
-  <input type="hidden" name="id" value="<?= (int) $edit['id'] ?>">
-</form>
-<?php endif; ?>
 
 <script>
 // Só o par de campos do tipo escolhido fica em cena.
