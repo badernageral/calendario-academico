@@ -17,8 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
         'texto_fim_bimestre'    => post('texto_fim_bimestre'),
         'texto_inicio_bimestre' => post('texto_inicio_bimestre'),
         'texto_fim_semestre'    => post('texto_fim_semestre'),
-        // Caixa desmarcada não é enviada, e é isso que a apaga.
-        'negrito_periodo'       => isset($_POST['negrito_periodo']) ? '1' : '0',
+        'negrito_periodo'       => post('negrito_periodo') === '1' ? '1' : '0',
         'orgao'         => post('orgao'),
         'campus'        => post('campus'),
         'cidade'        => post('cidade'),
@@ -147,17 +146,13 @@ head('Configurações', 'configuracoes');
         <?php if ($g_marco): $g_campoCor($g_marco, 'Cor do dia', 'Prioridade ' . (int) $g_marco['prioridade']
             . ' — vence a cor do dia sobre as de alcance menor. A cor do texto acompanha o fundo sozinha.'); ?>
         <?php endif; ?>
-        <div class="col-md-9">
-          <label class="form-label d-block">Peso da letra</label>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="negrito_periodo" id="negrito_periodo"
-                   <?= cfg('negrito_periodo') === '1' ? 'checked' : '' ?>>
-            <label class="form-check-label" for="negrito_periodo">Descrição do evento em negrito</label>
-          </div>
-          <div class="form-text">
-            Vale na lista de cada mês, na tela e no papel. Desmarcado, elas saem com o mesmo peso
-            dos outros eventos.
-          </div>
+        <div class="col-md-4">
+          <label class="form-label" for="negrito_periodo">Texto do evento em negrito</label>
+          <?php $g_negrito = cfg('negrito_periodo') === '1'; ?>
+          <select name="negrito_periodo" id="negrito_periodo" class="form-select">
+            <option value="1" <?= $g_negrito ? 'selected' : '' ?>>Sim</option>
+            <option value="0" <?= $g_negrito ? '' : 'selected' ?>>Não</option>
+          </select>
         </div>
       </div>
 
