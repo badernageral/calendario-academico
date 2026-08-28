@@ -165,11 +165,10 @@ head('Configurações', 'configuracoes');
       <hr class="my-4">
 
       <p class="small text-muted">
-        <strong>O texto das quatro linhas.</strong>
-        Trocas disponíveis: <code>{ano}</code>, <code>{semestre}</code> (1 ou 2) e
-        <code>{bimestre}</code>, que é o número do bimestre como ele se chama naquele curso —
-        1 a 4 no anual, 1 ou 2 dentro de cada semestre no semestral.
-        Deixar um campo vazio tira aquela linha do calendário.
+        <strong>A descrição de cada marco.</strong>
+        Trocas: <code>{ano}</code>, <code>{semestre}</code> (1 ou 2) e <code>{bimestre}</code>
+        — 1 a 4 no curso anual, 1 ou 2 por semestre no semestral.
+        Campo vazio não gera o evento daquele dia.
       </p>
       <div class="row g-3">
         <?php foreach ([
