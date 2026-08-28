@@ -368,13 +368,9 @@ table.mes-grade td {
   font-size: 0.7rem; line-height: 1.3;
 }
 .eventos-mes li:hover { background: #f8faff; }
-.eventos-mes a,
-.eventos-mes .so-leitura { flex: 1; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.eventos-mes a { flex: 1; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
 .eventos-mes a:hover { color: #2563eb; }
-.eventos-mes a.negrito,
-.eventos-mes .so-leitura.negrito { font-weight: 700; }
-/* Feriado fora da tela de Feriados: está ali para conferir, não para clicar. */
-.eventos-mes .so-leitura { color: #64748b; cursor: default; }
+.eventos-mes a.negrito { font-weight: 700; }
 .eventos-mes .chip {
   flex: none; width: 9px; height: 9px; margin-top: 3px;
   border: 1px solid #94a3b8; border-radius: 2px;

@@ -33,10 +33,18 @@ $g_coisa = $g_feriados ? 'feriado' : 'evento';
 // sempre true, nada é escondido e as caixas nem aparecem no cabeçalho.
 $g_verFeriados = !isset($gradeVerFeriados) || $gradeVerFeriados;
 $g_verGlobais  = !isset($gradeVerGlobais)  || $gradeVerGlobais;
-$g_filtravel   = !$g_global && isset($gradeVerFeriados, $gradeVerGlobais);
+$g_verAuto     = !isset($gradeVerAuto)     || $gradeVerAuto;
+$g_filtravel   = !$g_global && isset($gradeVerFeriados, $gradeVerGlobais, $gradeVerAuto);
 
-/** Feriado vem antes de global: no calendário ele também é calendario_id null. */
-$g_visivel = static function (array $ev) use ($g_verFeriados, $g_verGlobais): bool {
+/**
+ * A ordem importa. O marco de bimestre leva o id do calendário e o feriado não
+ * leva nenhum, então os dois passariam pela última linha como se fossem evento
+ * local — cada um tem de ser reconhecido antes dela.
+ */
+$g_visivel = static function (array $ev) use ($g_verFeriados, $g_verGlobais, $g_verAuto): bool {
+    if (!empty($ev['auto'])) {
+        return $g_verAuto;
+    }
     if (isset($ev['feriado_id'])) {
         return $g_verFeriados;
     }
@@ -143,6 +151,11 @@ unset($g_lista, $g_ev, $g_ini);
                  <?= $g_verGlobais ? 'checked' : '' ?> onchange="this.form.submit()">
           <label class="form-check-label small" for="verGlobais">Eventos globais</label>
         </div>
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" name="auto" value="1" id="verAuto"
+                 <?= $g_verAuto ? 'checked' : '' ?> onchange="this.form.submit()">
+          <label class="form-check-label small" for="verAuto">Automáticos</label>
+        </div>
       </form>
       <?php endif; ?>
       <span class="small text-muted d-none d-md-inline">
@@ -214,32 +227,27 @@ unset($g_lista, $g_ev, $g_ini);
             $g_base = $g_ev['calendario_id'] === null;
             $g_cat  = $g_ev['categoria_id'] !== null ? ($g_cats[(int) $g_ev['categoria_id']] ?? null) : null;
             $g_feriado = isset($g_ev['feriado_id']);
-            // O marco de bimestre é o único que não se edita em lugar nenhum:
-            // ele sai das datas do próprio calendário e do modelo de texto em
-            // Configurações, e aqui aparece só para conferência.
-            //
-            // O feriado se edita das três telas, no formulário dele, que abre
-            // em modal sem sair de onde se está — sair custaria o ano em foco,
-            // os filtros e o lugar da rolagem.
+            // Tudo na lista abre alguma coisa, e cada um a sua: o evento abre o
+            // formulário de evento, o feriado abre o do cadastro de feriados e o
+            // marco de bimestre abre os dados do calendário — ele não se edita
+            // como evento, porque é escrito a partir das oito datas de lá, e é
+            // nelas que se mexe. Os três abrem em modal, sem sair da tela.
             $g_auto     = !empty($g_ev['auto']);
-            $g_editavel = !$g_auto;
-            $g_link  = $g_url . ($g_feriado
-                ? 'editar_feriado=' . (int) $g_ev['feriado_id']
-                : 'editar_evento=' . (int) $g_ev['id']);
+            $g_link  = $g_url . match (true) {
+                $g_auto    => 'editar_cal=1',
+                $g_feriado => 'editar_feriado=' . (int) $g_ev['feriado_id'],
+                default    => 'editar_evento=' . (int) $g_ev['id'],
+            };
             $g_negr  = (int) $g_ev['negrito'] === 1 ? ' negrito' : '';
             $g_dica  = ($g_cat['nome'] ?? 'sem categoria')
                 . ($g_feriado && !$g_feriados ? ' · feriado, vale para todos os anos; abre no cadastro de Feriados' : '')
-                . ($g_auto ? ' · escrito pelo sistema a partir das datas dos bimestres' : '')
+                . ($g_auto ? ' · escrito a partir das datas dos bimestres; abre os dados do calendário' : '')
                 . (!$g_feriado && !$g_auto && !$g_global && $g_base ? ' · evento global' : '');
             ?>
             <li data-dias="<?= e(implode(',', $eng->diasDoEvento($g_ev))) ?>">
               <span class="chip" style="background:<?= e($g_cat['cor'] ?? 'transparent') ?>"
                     title="<?= e($g_cat['nome'] ?? 'sem categoria') ?>"></span>
-              <?php if ($g_editavel): ?>
               <a href="<?= e($g_link) ?>" class="<?= trim($g_negr) ?>" title="<?= e($g_dica) ?>">
-              <?php else: ?>
-              <span class="so-leitura<?= $g_negr ?>" title="<?= e($g_dica) ?>">
-              <?php endif; ?>
                 <?= e($eng->rotulo($g_ev)) ?> - <?= e($eng->descricaoNaLista($g_ev)) ?>
                 <?php
                 // De onde o item vem: feriado (do cadastro), global (de todos os
@@ -256,7 +264,7 @@ unset($g_lista, $g_ev, $g_ini);
                 <?php if ($g_global && !$g_feriado && niveisRotulo($g_ev['nivel']) !== ''): ?>
                   <span class="marca"><?= e(niveisRotulo($g_ev['nivel'])) ?></span>
                 <?php endif; ?>
-              <?= $g_editavel ? '</a>' : '</span>' ?>
+              </a>
               <?php
               // O X aparece onde a exclusão é desta tela: o evento na tela que o
               // cadastra, o feriado no cadastro de Feriados. Um marco de
@@ -381,8 +389,9 @@ unset($g_lista, $g_ev, $g_ini);
     } else {
       html += '<ul class="list-group list-group-flush">';
       dia.eventos.forEach(function (e) {
-        var url = URL + (e.feriado ? 'editar_feriado=' + e.feriado : 'editar_evento=' + e.id);
-        var editavel = !e.auto;
+        var url = URL + (e.auto ? 'editar_cal=1'
+                       : (e.feriado ? 'editar_feriado=' + e.feriado : 'editar_evento=' + e.id));
+        var editavel = true;
         html += '<li class="list-group-item d-flex align-items-start gap-2 px-0">' +
           '<span class="amostra mt-1" style="background:' + esc(e.cor || 'transparent') + '"></span>' +
           '<span class="flex-grow-1"><span class="d-block">' + esc(e.desc) + '</span>' +

@@ -216,8 +216,11 @@ Para conferir o que está carregado — as três precisam aparecer:
    × aparece no evento *local* aqui, no *global* na tela de Eventos globais e no
    *feriado* no cadastro de Feriados — apagar um global daqui afetaria todos os
    calendários do ano, e um feriado, todos os anos. Editar é de qualquer tela.
-   Só o marco de bimestre não tem nem um nem outro: ele sai das datas do próprio
-   calendário. Todo evento entra nessa lista — a mesma que sai impressa.
+   O marco de bimestre não tem ×, e o clique nele abre os **dados do
+   calendário** — que é de onde ele sai. Todo evento entra nessa lista — a mesma
+   que sai impressa. As caixas *Exibir* — *Feriados*, *Eventos globais* e
+   *Automáticos* — tiram cada tipo da vista sem mexer na contagem de dias
+   letivos, que continua contando com tudo.
    **Passar o mouse numa linha acende, na grade, os dias daquele evento** — uma
    lâmina azul translúcida por cima da célula, com o número em branco e negrito.
    Um evento de 26 dias marca as 26 células de uma vez, que é o que torna
@@ -360,7 +363,7 @@ divergência.
 
     index.php               painel: números do ano e atalhos
     calendarios.php         calendários (criar, copiar de outro ano, excluir)
-    editar_calendario.php   dados do calendário: semestres, metas, observações
+    editar_calendario.php   caminho para o modal de dados do calendário
     calendario.php          grade clicável e eventos do curso
     cursos.php              cadastro de cursos
     niveis.php              cadastro dos níveis de ensino
@@ -372,11 +375,12 @@ divergência.
     gerar.php               saída no formato da planilha (tela e impressão)
     lib/                    db.php, Engine.php (cálculo), util.php, schema.sql,
                             layout.php (barra lateral), grade_calendario.php
-                            (a grade anual, usada pelas duas telas),
+                            (a grade anual, usada pelas três telas),
                             feriados.php (as regras de data dos feriados),
-                            form_evento.php e form_feriado.php (os modais, os
-                            mesmos nas telas que os abrem), eventos_crud.php e
-                            feriados_crud.php (o POST de cada um),
+                            form_evento.php, form_feriado.php e
+                            form_calendario.php (os modais, os mesmos nas telas
+                            que os abrem), eventos_crud.php, feriados_crud.php e
+                            calendario_crud.php (o POST de cada um),
                             campos_bimestres.php (as oito datas, nas duas telas
                             que as pedem) e valida_bimestres.php (as mesmas
                             regras no navegador)

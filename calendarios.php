@@ -103,9 +103,6 @@ $cals   = $db->query(
      ORDER BY c.ano DESC, cu.nome'
 )->fetchAll();
 
-// Sem curso não há o que agendar: nesse caso a tela só convida a cadastrar um.
-$abrirModal = $cursos && get('novo') !== '';
-
 // O formulário abre com as datas prováveis dos bimestres já preenchidas. Como
 // elas dependem do ano — e dos feriados dele —, vai uma sugestão por ano à mão
 // do formulário, para as datas acompanharem a troca do ano sem recarregar.
@@ -191,78 +188,7 @@ head('Calendários', 'calendarios');
   </div>
 </div>
 
-<div class="modal fade" id="modalCalendario" tabindex="-1" aria-labelledby="tituloModalCalendario" <?= $abrirModal ? 'data-abrir="1"' : '' ?>>
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <form method="post">
-        <?= csrfCampo() ?>
-        <div class="modal-header">
-          <h5 class="modal-title" id="tituloModalCalendario">
-            <i class="bi bi-calendar-plus me-2 text-primary"></i>Novo calendário
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
-
-        <div class="modal-body">
-          <input type="hidden" name="acao" value="novo">
-          <div class="alert alert-danger d-none erro-periodos" role="alert"></div>
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">Curso</label>
-              <select name="curso_id" class="form-select" required>
-                <?php foreach ($cursos as $c): ?>
-                  <option value="<?= $c['id'] ?>"><?= e($c['nome']) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="col-md-2">
-              <label class="form-label">Ano</label>
-              <input type="number" name="ano" id="anoCalendario" class="form-control"
-                     value="<?= $anoPadrao ?>" min="2000" max="2100" required>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Situação</label>
-              <input name="situacao" class="form-control" value="<?= e(cfg('situacao')) ?>">
-            </div>
-            <div class="col-12">
-              <label class="form-label">Local e data</label>
-              <input name="local_texto" class="form-control" value="<?= e(localEData()) ?>">
-            </div>
-
-            <?php
-            $valores = $sugestoes[$anoPadrao];
-            $regime  = $cursos ? $cursos[0]['regime'] : 'semestral';
-            require __DIR__ . '/lib/campos_bimestres.php';
-            ?>
-
-            <div class="col-12">
-              <label class="form-label">Observações</label>
-              <textarea name="observacoes" class="form-control" rows="3"></textarea>
-              <div class="form-text">Cada linha vira uma nota na página de resumo do calendário impresso.</div>
-            </div>
-
-            <div class="col-12"><hr class="my-1"></div>
-            <div class="col-md-6">
-              <label class="form-label">Copiar eventos de</label>
-              <select name="copiar_de" class="form-select">
-                <option value="">— começar vazio —</option>
-                <?php foreach ($cals as $c): ?>
-                  <option value="<?= $c['id'] ?>"><?= e($c['curso_nome']) ?> · <?= $c['ano'] ?> (<?= $c['n_eventos'] ?> eventos)</option>
-                <?php endforeach; ?>
-              </select>
-              <div class="form-text">As datas entram deslocadas para o ano novo. Só na criação.</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Criar calendário</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+<?php $calEdit = null; require __DIR__ . '/lib/form_calendario.php'; ?>
 
 <script>
 /**
@@ -305,7 +231,6 @@ head('Calendários', 'calendarios');
 })();
 </script>
 
-<?php require __DIR__ . '/lib/valida_bimestres.php'; ?>
 <?php endif; ?>
 
 <?php foot(); ?>

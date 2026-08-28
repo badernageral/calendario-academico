@@ -2,6 +2,7 @@
 require __DIR__ . '/lib/boot.php';
 require __DIR__ . '/lib/eventos_crud.php';
 require __DIR__ . '/lib/feriados_crud.php';
+require __DIR__ . '/lib/calendario_crud.php';
 
 $db = db();
 $id = getInt('id') ?: postInt('cal_id', 0);
@@ -18,25 +19,32 @@ if (!$cal) {
 }
 $ano = (int) $cal['ano'];
 
-// Caixas "Feriados" e "Eventos globais": filtro só de exibição da grade, que
-// nasce com as duas marcadas. Desmarcadas, sobra à vista o que é deste
-// calendário. Como caixa desmarcada não é enviada, "filtros=1" é a marca de que
-// a resposta veio do formulário — sem ela, é a primeira entrada na tela.
+// Caixas "Feriados", "Eventos globais" e "Automáticos": filtro só de exibição
+// da grade, que nasce com as três marcadas. Desmarcadas, sobra à vista o que é
+// deste calendário e foi digitado. Como caixa desmarcada não é enviada,
+// "filtros=1" é a marca de que a resposta veio do formulário — sem ela, é a
+// primeira entrada na tela.
 $filtrou     = get('filtros') === '1';
 $verFeriados = !$filtrou || get('feriados') === '1';
 $verGlobais  = !$filtrou || get('globais') === '1';
+$verAuto     = !$filtrou || get('auto') === '1';
 
 // Vai em toda volta ao calendário (salvar, cancelar, editar) para as caixas
 // continuarem como estavam.
 $voltarPara = 'calendario.php?id=' . $id
     . '&filtros=1&feriados=' . ($verFeriados ? '1' : '0')
-    . '&globais=' . ($verGlobais ? '1' : '0');
+    . '&globais=' . ($verGlobais ? '1' : '0')
+    . '&auto=' . ($verAuto ? '1' : '0');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     tratarPostEvento($db, $ano, $id, $voltarPara);
     // O feriado aparece na grade daqui, então também se altera daqui — e volta
     // para esta tela, com as caixas como estavam.
     tratarPostFeriado($db, $voltarPara);
+    // As oito datas dos bimestres se conferem olhando a grade, então é dela que
+    // se abre o formulário — inclusive clicando num marco de início ou fim de
+    // bimestre, que sai justamente destas datas.
+    tratarPostCalendario($db, $cal, $voltarPara);
 }
 
 $feriadoEdit = feriadoEmEdicao($db);
@@ -96,7 +104,7 @@ $contadores = [
 ?>
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a class="btn btn-sm btn-outline-secondary" href="calendarios.php"><i class="bi bi-arrow-left me-1"></i>Calendários</a>
-  <a class="btn btn-sm btn-outline-primary" href="editar_calendario.php?id=<?= $id ?>"><i class="bi bi-sliders me-1"></i>Dados e bimestres</a>
+  <a class="btn btn-sm btn-outline-primary" href="<?= e($voltarPara) ?>&editar_cal=1"><i class="bi bi-sliders me-1"></i>Dados e bimestres</a>
   <a class="btn btn-sm btn-outline-dark" href="gerar.php?id=<?= $id ?>" target="_blank"><i class="bi bi-printer me-1"></i>Gerar calendário</a>
   <?php if ($ev): ?>
     <a class="btn btn-sm btn-primary" href="<?= e($voltarPara) ?>&novo=1"><i class="bi bi-plus-lg me-1"></i>Novo evento</a>
@@ -111,7 +119,7 @@ $contadores = [
     <div>
       Os semestres ainda não foram informados, então <strong>o ano inteiro está contando como letivo</strong> —
       só feriados, férias e recessos tiram dias. O resumo abaixo divide o ano ao meio (jan–jun e jul–dez).
-      Informe as datas em <a href="editar_calendario.php?id=<?= $id ?>">Dados e bimestres</a> para delimitar o período letivo.
+      Informe as datas em <a href="<?= e($voltarPara) ?>&editar_cal=1">Dados e bimestres</a> para delimitar o período letivo.
     </div>
   </div>
 <?php elseif (!$eng->bimestres()): ?>
@@ -121,7 +129,7 @@ $contadores = [
       Este calendário é de antes dos bimestres: os semestres estão informados, mas os quatro
       bimestres não — por isso <strong>os contadores de bimestre estão zerados</strong> e a grade não
       marca sozinha o início e o fim de cada um. Abra
-      <a href="editar_calendario.php?id=<?= $id ?>">Dados e bimestres</a>, confira as datas sugeridas
+      <a href="<?= e($voltarPara) ?>&editar_cal=1">Dados e bimestres</a>, confira as datas sugeridas
       e salve.
     </div>
   </div>
@@ -142,10 +150,12 @@ $contadores = [
 
 <?php $baseComum = false; $dataPadrao = $novaData; require __DIR__ . '/lib/form_evento.php'; ?>
 <?php require __DIR__ . '/lib/form_feriado.php'; ?>
+<?php $calEdit = $cal; require __DIR__ . '/lib/form_calendario.php'; ?>
 
 <?php
 $gradeVerFeriados = $verFeriados;
 $gradeVerGlobais  = $verGlobais;
+$gradeVerAuto     = $verAuto;
 require __DIR__ . '/lib/grade_calendario.php';
 ?>
 
