@@ -28,12 +28,13 @@ body {
 
 .barra-tela {
   position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  /* O botão é o único ocupante da barra e vai para a direita, onde a mão já
+     está: a barra acompanha a rolagem e fica sobre o canto da folha. */
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
   padding: 10px 16px;
   background: #1f2937; color: #e5e7eb;
   font-size: 13px;
 }
-.barra-tela .dica { opacity: .7; }
 .btn {
   display: inline-block; padding: 6px 12px; border: 1px solid #4b5563; border-radius: 5px;
   background: #374151; color: #e5e7eb; text-decoration: none; font: inherit; cursor: pointer;
@@ -201,7 +202,16 @@ ul.legenda .amostra {
   .barra-tela { display: none; }
   .pagina {
     width: auto;
-    min-height: 0;
+    /* Na tela, os 210mm de min-height é que empurram o rodapé para o pé da
+       folha: a .pagina é uma coluna flex e o .trimestre cresce para preencher.
+       Zerando aqui, a caixa passava a ter a altura do conteúdo e o rodapé subia
+       para logo abaixo dos meses — igual na tela, diferente no papel.
+
+       A altura é a da área imprimível: A4 paisagem (210mm de altura) menos as
+       margens de 8mm do @page. 193 e não 194 porque a conversão de mm para
+       pixel arredonda, e um fio a mais empurraria cada página para uma segunda,
+       em branco. O milímetro que sobra não se vê. */
+    min-height: 193mm;
     margin: 0;
     padding: 0;
     box-shadow: none;

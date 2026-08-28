@@ -48,7 +48,6 @@ function cabecalho(string $titulo): void
 
 <div class="barra-tela">
   <button class="btn primario" onclick="window.print()">Imprimir / salvar em PDF</button>
-  <span class="dica">Na caixa de impressão: papel A4, orientação paisagem, margens padrão e gráficos de fundo ativados.</span>
 </div>
 
 <?php foreach ($trimestres as $tri): ?>
