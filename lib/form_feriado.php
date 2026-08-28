@@ -93,8 +93,7 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
                 <input type="hidden" name="categoria_id" value="<?= (int) ($f_atual['id'] ?? 0) ?>">
               </div>
               <div class="form-text">
-                A origem da norma — sai no papel depois do nome. A
-                <a href="configuracoes.php">cor de cada tipo</a> fica em Configurações.
+                A <a href="configuracoes.php">cor de cada tipo</a> fica em Configurações.
               </div>
             </div>
 
