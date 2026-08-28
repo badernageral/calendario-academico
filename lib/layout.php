@@ -70,6 +70,10 @@ function head(string $titulo, string $ativo = ''): void
   <div class="content-wrapper p-3 p-lg-4">
 <?php
     $f = flash();
+    // O rodapé precisa saber: com um erro na tela, a rolagem não é restaurada —
+    // a mensagem fica no topo, e voltar para o meio da página a esconderia
+    // justamente quando ela é o que explica por que o modal reabriu.
+    $GLOBALS['flash_erro'] = $f !== null && $f['tipo'] === 'erro';
     if ($f) {
         $classe = $f['tipo'] === 'erro' ? 'danger' : 'success';
         $icone  = $f['tipo'] === 'erro' ? 'exclamation-triangle-fill' : 'check-circle-fill';
@@ -96,6 +100,50 @@ function foot(): void
     barra.classList.toggle('collapsed');
     localStorage.setItem('menu', barra.classList.contains('collapsed') ? 'estreito' : 'largo');
   });
+})();
+
+/**
+ * A rolagem sobrevive à ida e volta do modal.
+ *
+ * Abrir um evento ou um feriado da lista não é abrir uma caixa em cima da
+ * página: é carregar a página de novo com o modal montado pronto, e salvar é um
+ * POST que redireciona para ela outra vez. Documento novo começa no topo — quem
+ * estava editando outubro voltava em janeiro e tinha de rolar de volta a cada
+ * evento.
+ *
+ * Só se guarda o que volta para esta mesma tela: um link para outro pathname é
+ * o menu lateral, e restaurar a posição de uma tela em outra não faria sentido.
+ * O valor é lido uma vez e apagado, para uma volta pelo histórico não herdar a
+ * posição de uma navegação anterior.
+ *
+ * A exceção é a tela que voltou com erro: aí a página fica no topo, que é onde
+ * está a mensagem dizendo o que impediu de gravar.
+ */
+(function () {
+  var busca = new URLSearchParams(location.search);
+  var chave = 'rolagem:' + location.pathname + ':' + (busca.get('id') || busca.get('ano') || '');
+
+  var guardado = sessionStorage.getItem(chave);
+  if (guardado !== null) {
+    sessionStorage.removeItem(chave);
+    if (!<?= !empty($GLOBALS['flash_erro']) ? 'true' : 'false' ?>) {
+      window.scrollTo(0, parseInt(guardado, 10) || 0);
+    }
+  }
+
+  function guardar() {
+    sessionStorage.setItem(chave, String(window.scrollY));
+  }
+
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest('a[href]');
+    if (a && a.pathname === location.pathname) {
+      guardar();
+    }
+  });
+  // O submit borbulha: pega o formulário do modal, o × de excluir e as caixas
+  // de filtro, que também recarregam a tela.
+  document.addEventListener('submit', guardar);
 })();
 
 /**
