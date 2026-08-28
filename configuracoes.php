@@ -141,8 +141,7 @@ head('Configurações', 'configuracoes');
     <div class="card-body">
       <p class="small text-muted">
         Nos dias de início e fim de cada bimestre o sistema escreve sozinho uma linha na lista do
-        mês e no calendário impresso, e pinta o dia. As datas saem de cada calendário; a cor, o
-        peso da letra e o texto saem daqui.
+        mês e no calendário impresso, e pinta o dia.
       </p>
       <div class="row g-3 align-items-start">
         <?php if ($g_marco): $g_campoCor($g_marco, 'Cor do dia', 'Prioridade ' . (int) $g_marco['prioridade']
