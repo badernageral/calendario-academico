@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS calendarios (
     UNIQUE (curso_id, ano)
 );
 
--- Semestres letivos (delimitam a contagem) e bimestres (informativos)
+-- Os quatro bimestres, que é o que se digita, e os dois semestres que saem
+-- deles. Ambos delimitam contagem: o semestre diz que dia é letivo, o bimestre
+-- responde pelos contadores e pelos marcos automáticos na grade.
 CREATE TABLE IF NOT EXISTS periodos (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     calendario_id INTEGER NOT NULL REFERENCES calendarios(id) ON DELETE CASCADE,
@@ -82,6 +84,8 @@ CREATE TABLE IF NOT EXISTS periodos (
     fim           TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_periodos_cal ON periodos(calendario_id);
+-- Um período de cada tipo e número por calendário, e não mais.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_periodos_unico ON periodos(calendario_id, tipo, numero);
 
 -- Eventos. calendario_id NULL = base comum do ano (vale para todos os cursos).
 CREATE TABLE IF NOT EXISTS eventos (

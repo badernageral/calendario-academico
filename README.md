@@ -377,7 +377,8 @@ divergência.
     data/                   calendario.sqlite
     backups/                cópias geradas pela tela de Backup
     ferramentas/            importar_ods.py — migração da planilha antiga
-    testes/                 executar.php — a suíte do motor
+    testes/                 executar.php — a suíte do motor; telas.php — abre
+                            todas as páginas e cobra log limpo
     desktop/                empacotamento Electron para Windows (main.js,
                             router.php, php.ini e o ícone)
     .github/workflows/      build do instalador e a suíte no GitHub Actions
@@ -385,13 +386,23 @@ divergência.
 ## Testes
 
     php testes/executar.php
+    php testes/telas.php
 
-Cobrem o motor — a única parte do sistema que decide alguma coisa sozinha: a
-contagem de dias letivos, a precedência entre categorias, o feriado que derruba
-o sábado letivo, os feriados móveis, o alcance por nível de ensino e os rótulos
-de data que saem no papel. Cada teste monta o cenário num banco temporário,
-criado do próprio `schema.sql` com o seed de fábrica; a base do site não é
-tocada. O GitHub Actions roda a suíte e um `php -l` em todo arquivo a cada push.
+A primeira cobre o motor — a única parte do sistema que decide alguma coisa
+sozinha: a contagem de dias letivos, a precedência entre categorias, o feriado
+que derruba o sábado letivo, os feriados móveis, o alcance por nível de ensino,
+os rótulos de data que saem no papel e as oito datas que chegam do formulário.
+
+A segunda é de fumaça: sobe o servidor embutido sobre um banco temporário, abre
+as quinze telas e cobra HTTP 200 com o log do PHP limpo. Ela existe porque a
+suíte do motor não abre página nenhuma — e foi assim que um `require` fora de
+ordem (500 no cadastro de feriados) e um SELECT sem a coluna `regime` (bimestres
+de curso anual rotulados como semestral) passaram por `php -l` e pela suíte sem
+ninguém notar.
+
+Cada teste monta o cenário num banco temporário, criado do próprio `schema.sql`
+com o seed de fábrica; a base do site não é tocada. O GitHub Actions roda as
+duas e um `php -l` em todo arquivo a cada push.
 
 ## Migrar de uma planilha .ods
 

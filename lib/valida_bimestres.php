@@ -23,9 +23,16 @@
       var el = form.querySelector('[data-rotulo="bim' + n + '_inicio"]');
       return el ? el.textContent.replace(/\s*—\s*início\s*$/, '') : n + 'º bimestre';
     }
+    // Na criação o ano é um campo que ainda muda; na tela de dados ele é fixo e
+    // vem no data-ano do formulário, porque lá o campo aparece desabilitado e
+    // desabilitado não se lê pelo name.
+    function ano() {
+      var el = form.querySelector('[name="ano"]');
+      return parseInt(el ? el.value : (form.dataset.ano || ''), 10);
+    }
 
     form.addEventListener('submit', function (ev) {
-      var erro = '', anterior = '';
+      var erro = '', anterior = '', doAno = ano();
 
       for (var n = 1; n <= 4; n++) {
         var i = valor('bim' + n + '_inicio'), f = valor('bim' + n + '_fim');
@@ -39,6 +46,11 @@
         }
         if (anterior && i <= anterior) {
           erro = 'O ' + rotulo(n) + ' começa antes de o anterior terminar.';
+          break;
+        }
+        var fora = [i, f].filter(function (d) { return parseInt(d.slice(0, 4), 10) !== doAno; });
+        if (doAno && fora.length) {
+          erro = 'No ' + rotulo(n) + ', a data ' + fora[0] + ' está fora de ' + doAno + '.';
           break;
         }
         anterior = f;

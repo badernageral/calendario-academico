@@ -98,14 +98,16 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
                   <div class="dropdown seletor-categoria">
                     <button type="button" class="form-select text-start dropdown-toggle-sem-seta"
                             id="botaoCategoria" data-bs-toggle="dropdown" data-bs-display="static"
-                            aria-expanded="false">
+                            aria-haspopup="listbox" aria-expanded="false">
                       <span class="retangulo-cor <?= $catAtual ? '' : 'sem-cor' ?>"
                             style="<?= $catAtual ? 'background:' . e($catAtual['cor']) : '' ?>"></span>
                       <span class="rotulo"><?= $catAtual ? e($catAtual['nome']) : '— sem cor, só na lista —' ?></span>
                     </button>
-                    <ul class="dropdown-menu w-100">
+                    <ul class="dropdown-menu w-100" role="listbox" aria-labelledby="botaoCategoria">
                       <li>
-                        <button type="button" class="dropdown-item" data-valor="" data-cor="">
+                        <button type="button" class="dropdown-item" role="option"
+                                aria-selected="<?= $catAtual ? 'false' : 'true' ?>"
+                                data-valor="" data-cor="" data-nome="— sem cor, só na lista —">
                           <span class="retangulo-cor sem-cor"></span>
                           <span>— sem cor, só na lista —</span>
                         </button>
@@ -123,8 +125,13 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
                         }
                         ?>
                         <li>
+                          <?php // data-nome é o nome puro: o aviso da oculta explica a linha do
+                                // menu, mas não faz parte do nome da categoria e não deve ir
+                                // parar no rótulo do botão depois de escolhida. ?>
                           <button type="button" class="dropdown-item<?= $ehAtual ? ' active' : '' ?>"
-                                  data-valor="<?= (int) $c['id'] ?>" data-cor="<?= e($c['cor']) ?>">
+                                  role="option" aria-selected="<?= $ehAtual ? 'true' : 'false' ?>"
+                                  data-valor="<?= (int) $c['id'] ?>" data-cor="<?= e($c['cor']) ?>"
+                                  data-nome="<?= e($c['nome']) ?>">
                             <span class="retangulo-cor" style="background:<?= e($c['cor']) ?>"></span>
                             <span><?= e($c['nome']) ?><?= (int) $c['oculta'] === 1 ? ' — vem do cadastro de feriados' : '' ?></span>
                           </button>
@@ -417,12 +424,16 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
       var cor = item.dataset.cor || '';
 
       campo.value        = item.dataset.valor || '';
-      rotulo.textContent = item.querySelector('span:last-child').textContent.trim();
+      rotulo.textContent = item.dataset.nome;
       quadro.style.background = cor;
       quadro.classList.toggle('sem-cor', cor === '');
 
-      caixa.querySelectorAll('.dropdown-item.active').forEach(function (a) { a.classList.remove('active'); });
+      caixa.querySelectorAll('.dropdown-item').forEach(function (a) {
+        a.classList.remove('active');
+        a.setAttribute('aria-selected', 'false');
+      });
       item.classList.add('active');
+      item.setAttribute('aria-selected', 'true');
     });
   });
 })();

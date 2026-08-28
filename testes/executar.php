@@ -75,6 +75,24 @@ function categoriaId(PDO $db, string $nome): int
     return (int) $id;
 }
 
+/**
+ * Grava só os dois semestres de um calendário — o formato de antes dos
+ * bimestres. A aplicação não faz mais isso em lugar nenhum: quem manda são os
+ * quatro bimestres, e os semestres saem deles. Fica aqui porque os testes
+ * precisam montar o calendário legado para conferir que ele continua sendo
+ * lido.
+ *
+ * @param array<int, array{0: string, 1: string}> $semestres numero => [inicio, fim]
+ */
+function salvarSemestres(PDO $db, int $calendarioId, array $semestres): void
+{
+    $ins = $db->prepare("INSERT INTO periodos (calendario_id, tipo, numero, inicio, fim) VALUES (?, 'semestre', ?, ?, ?)");
+    $db->prepare("DELETE FROM periodos WHERE calendario_id = ? AND tipo = 'semestre'")->execute([$calendarioId]);
+    foreach ($semestres as $numero => [$inicio, $fim]) {
+        $ins->execute([$calendarioId, $numero, $inicio, $fim]);
+    }
+}
+
 /** Curso + calendário + os dois semestres. Devolve o id do calendário. */
 function calendarioDeTeste(
     PDO $db,
@@ -547,6 +565,49 @@ confere('no resumo, os bimestres fecham o semestre coluna a coluna', (function (
     }
     return array_values(array_unique($ok));
 })(), [true]);
+
+grupo('As oito datas que chegam do formulário');
+// A validação lê o $_POST direto, então o teste monta o $_POST e o desfaz.
+$comPost = static function (array $datas, string $regime, int $ano): array {
+    $_POST = $datas;
+    $r = bimestresDoFormulario($regime, $ano);
+    $_POST = [];
+    return $r;
+};
+$oitoDatas = static fn (int $ano): array => [
+    'bim1_inicio' => "$ano-02-02", 'bim1_fim' => "$ano-04-10",
+    'bim2_inicio' => "$ano-04-13", 'bim2_fim' => "$ano-06-30",
+    'bim3_inicio' => "$ano-08-03", 'bim3_fim' => "$ano-10-02",
+    'bim4_inicio' => "$ano-10-05", 'bim4_fim' => "$ano-12-18",
+];
+confere('oito datas do ano certo passam', $comPost($oitoDatas(2026), 'anual', 2026)[1], '');
+// Repetir as datas do calendário anterior era o caminho fácil para um ano
+// inteiro com zero dia letivo: os períodos existiam, mas fora da grade, e nem o
+// aviso de "semestres não informados" aparecia, porque eles estavam lá.
+confere('as do ano anterior não',
+    $comPost($oitoDatas(2025), 'anual', 2026)[1],
+    'No 1º bimestre, a data 2025-02-02 está fora de 2026.');
+confere('nem uma só data escapando do ano', (function () use ($comPost, $oitoDatas) {
+    $datas = $oitoDatas(2026);
+    $datas['bim4_fim'] = '2027-01-15';
+    return $comPost($datas, 'anual', 2026)[1];
+})(), 'No 4º bimestre, a data 2027-01-15 está fora de 2026.');
+confere('e nada é devolvido para gravar quando há erro',
+    $comPost($oitoDatas(2025), 'anual', 2026)[0], []);
+// O rótulo do erro fala o vocabulário do regime: no semestral o número do
+// bimestre se repete, e sem dizer o semestre a mensagem apontaria para dois
+// campos ao mesmo tempo.
+confere('o erro nomeia o bimestre pelo regime do curso',
+    $comPost($oitoDatas(2025), 'semestral', 2026)[1],
+    'No 1º bimestre do 1º semestre, a data 2025-02-02 está fora de 2026.');
+
+grupo('Datas que andam de um ano para outro');
+confere('dia e mês ficam onde estavam', deslocarAno('2026-03-15', 1), '2027-03-15');
+confere('e voltam também', deslocarAno('2026-03-15', -1), '2025-03-15');
+// 29 de fevereiro não existe fora do bissexto. O modify('+1 year') do PHP
+// mandava o evento para 1º de março — outro mês, outra semana da grade.
+confere('29 de fevereiro encosta no 28 fora do bissexto', deslocarAno('2024-02-29', 1), '2025-02-28');
+confere('e continua 29 quando o ano de destino é bissexto', deslocarAno('2024-02-29', 4), '2028-02-29');
 
 grupo('Regime das disciplinas do curso');
 $db = bancoLimpo();

@@ -17,7 +17,7 @@ if (!$cal) {
 $ano = (int) $cal['ano'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar_cal') {
-    [$bimestres, $erro] = bimestresDoFormulario((string) $cal['curso_regime']);
+    [$bimestres, $erro] = bimestresDoFormulario((string) $cal['curso_regime'], $ano);
     if ($erro !== '') {
         flash($erro, 'erro');
         redirect('editar_calendario.php?id=' . $id);
@@ -89,7 +89,7 @@ head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
     <i class="bi bi-sliders me-2 text-primary"></i>Dados do calendário e semestres
   </div>
   <div class="card-body">
-    <form method="post" class="row g-3">
+    <form method="post" class="row g-3" data-ano="<?= $ano ?>">
       <?= csrfCampo() ?>
       <input type="hidden" name="acao" value="salvar_cal">
       <input type="hidden" name="cal_id" value="<?= $id ?>">

@@ -119,6 +119,19 @@ function migrar(PDO $pdo): void
         }
     }
 
+    // Um calendário tem no máximo um período de cada tipo e número. O índice
+    // único diz isso ao banco: salvarPeriodos() apaga e reinsere numa
+    // transação, mas dois pedidos ao mesmo tempo passariam por fora dela e
+    // deixariam o calendário com bimestres repetidos, que o motor leria como
+    // datas contraditórias. Num banco que já tenha a repetição o CREATE falha —
+    // e nesse caso é melhor deixar como está do que recusar a abrir o sistema.
+    try {
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_periodos_unico
+                    ON periodos(calendario_id, tipo, numero)');
+    } catch (PDOException $e) {
+        // Duplicatas de um banco antigo: seguem lá, sem o índice.
+    }
+
     // O curso passou a dizer se as disciplinas dele são anuais ou semestrais.
     // Quem já tinha banco entra como 'semestral', que é o caso comum e o mesmo
     // padrão do schema. O ALTER do SQLite não carrega o CHECK da tabela nova —

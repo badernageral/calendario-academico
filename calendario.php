@@ -6,7 +6,7 @@ $db = db();
 $id = getInt('id') ?: postInt('cal_id', 0);
 
 $st = $db->prepare(
-    'SELECT c.*, cu.nome AS curso_nome, cu.nivel AS curso_nivel
+    'SELECT c.*, cu.nome AS curso_nome, cu.nivel AS curso_nivel, cu.regime AS curso_regime
      FROM calendarios c JOIN cursos cu ON cu.id = c.curso_id WHERE c.id = ?'
 );
 $st->execute([$id]);
@@ -106,6 +106,17 @@ $contadores = [
       Os semestres ainda não foram informados, então <strong>o ano inteiro está contando como letivo</strong> —
       só feriados, férias e recessos tiram dias. O resumo abaixo divide o ano ao meio (jan–jun e jul–dez).
       Informe as datas em <a href="editar_calendario.php?id=<?= $id ?>">Dados e bimestres</a> para delimitar o período letivo.
+    </div>
+  </div>
+<?php elseif (!$eng->bimestres()): ?>
+  <div class="alert alert-warning d-flex" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+    <div>
+      Este calendário é de antes dos bimestres: os semestres estão informados, mas os quatro
+      bimestres não — por isso <strong>os contadores de bimestre estão zerados</strong> e a grade não
+      marca sozinha o início e o fim de cada um. Abra
+      <a href="editar_calendario.php?id=<?= $id ?>">Dados e bimestres</a>, confira as datas sugeridas
+      e salve.
     </div>
   </div>
 <?php endif; ?>

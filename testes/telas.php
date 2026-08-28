@@ -1,0 +1,148 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Teste de fumaça das telas:
+ *
+ *     php testes/telas.php
+ *
+ * Sobe um servidor embutido sobre um banco temporário, abre cada página e cobra
+ * duas coisas: HTTP 200 e nenhum aviso do PHP no log do servidor.
+ *
+ * Existe por um motivo concreto. A suíte do motor não abre página nenhuma, e
+ * por isso deixou passar duas falhas que o primeiro acesso mostraria: um
+ * `require` fora de ordem que derrubava o cadastro de feriados em 500, e um
+ * SELECT sem a coluna `regime` que fazia a tela do calendário rotular os
+ * bimestres de um curso anual como se ele fosse semestral. Nenhuma das duas é
+ * pegável por `php -l` nem por teste de unidade — só abrindo.
+ */
+
+$raiz = dirname(__DIR__);
+$tmp  = sys_get_temp_dir() . '/calendario-telas-' . getmypid() . '.sqlite';
+$log  = sys_get_temp_dir() . '/calendario-telas-' . getmypid() . '.log';
+
+$limpar = static function () use ($tmp, $log): void {
+    foreach ([$tmp, "$tmp-wal", "$tmp-shm", $log] as $f) {
+        @unlink($f);
+    }
+};
+$limpar();
+register_shutdown_function($limpar);
+
+// ── O banco que as telas vão encontrar: um curso anual e um calendário dele ──
+// Anual de propósito: é o regime em que um rótulo errado aparece.
+putenv('CALENDARIO_DB=' . $tmp);
+require $raiz . '/lib/boot.php';
+
+$db = db();
+$db->prepare('INSERT INTO cursos (nome, nivel, regime, ativo) VALUES (?,?,?,1)')
+   ->execute(['CURSO DE FUMAÇA', 'integrado', 'anual']);
+$curso = (int) $db->lastInsertId();
+$db->prepare('INSERT INTO calendarios (curso_id, ano) VALUES (?,?)')->execute([$curso, 2026]);
+$cal = (int) $db->lastInsertId();
+salvarPeriodos($db, $cal, [
+    1 => ['2026-02-02', '2026-04-10'], 2 => ['2026-04-13', '2026-06-30'],
+    3 => ['2026-08-03', '2026-10-02'], 4 => ['2026-10-05', '2026-12-18'],
+]);
+$db = null;
+
+// ── Servidor embutido numa porta livre ──────────────────────────────────────
+$sock = stream_socket_server('tcp://127.0.0.1:0', $err, $msg);
+$porta = (int) explode(':', (string) stream_socket_get_name($sock, false))[1];
+fclose($sock);
+
+$cmd = sprintf(
+    'CALENDARIO_DB=%s php -S 127.0.0.1:%d -t %s > %s 2>&1 & echo $!',
+    escapeshellarg($tmp),
+    $porta,
+    escapeshellarg($raiz),
+    escapeshellarg($log)
+);
+$pid = (int) shell_exec($cmd);
+register_shutdown_function(static function () use ($pid): void {
+    if ($pid > 0) {
+        @exec('kill ' . $pid . ' 2>/dev/null');
+    }
+});
+
+// O servidor leva um instante para atender; sem esta espera o primeiro pedido
+// falharia por conexão recusada, e não por defeito da tela.
+$base = "http://127.0.0.1:$porta";
+for ($i = 0; $i < 50; $i++) {
+    if (@file_get_contents("$base/index.php", false, stream_context_create(
+        ['http' => ['timeout' => 1, 'ignore_errors' => true]]
+    )) !== false) {
+        break;
+    }
+    usleep(100000);
+}
+
+// ── As telas ────────────────────────────────────────────────────────────────
+$telas = [
+    'index.php',
+    'calendarios.php',
+    'calendarios.php?novo=1',
+    "calendario.php?id=$cal",
+    "calendario.php?id=$cal&novo=1",
+    "editar_calendario.php?id=$cal",
+    "gerar.php?id=$cal",
+    'cursos.php',
+    'eventos.php',
+    'eventos.php?ano=2027',
+    'feriados.php',
+    'categorias.php',
+    'configuracoes.php',
+    'niveis.php',
+    'backup.php',
+];
+
+$falhou = [];
+echo "\n\033[1mTelas: abrem sem erro?\033[0m\n";
+
+foreach ($telas as $tela) {
+    $ctx  = stream_context_create(['http' => ['timeout' => 10, 'ignore_errors' => true]]);
+    $body = @file_get_contents("$base/$tela", false, $ctx);
+    $codigo = 0;
+    foreach ($http_response_header ?? [] as $h) {
+        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+            $codigo = (int) $m[1];
+        }
+    }
+    // 302 é resposta boa: é para onde uma tela manda quando o id não serve.
+    $ok = $body !== false && in_array($codigo, [200, 302], true);
+    if ($ok) {
+        echo "  \033[32m✓\033[0m $tela\n";
+    } else {
+        $falhou[] = "$tela respondeu $codigo";
+        echo "  \033[31m✗\033[0m $tela — HTTP $codigo\n";
+    }
+}
+
+// ── O log do servidor: um aviso do PHP conta como falha ─────────────────────
+// É aqui que a coluna esquecida no SELECT aparece: a página responde 200 e
+// parece certa, e o "Undefined array key" fica só no log.
+$saida  = (string) @file_get_contents($log);
+$avisos = [];
+foreach (explode("\n", $saida) as $linha) {
+    if (preg_match('/PHP (Warning|Notice|Fatal error|Parse error|Deprecated)/', $linha)) {
+        $avisos[] = trim(preg_replace('/^\[[^\]]*\]\s*/', '', $linha));
+    }
+}
+$avisos = array_values(array_unique($avisos));
+
+echo "\n\033[1mO log do servidor está limpo?\033[0m\n";
+if ($avisos) {
+    foreach ($avisos as $a) {
+        echo "  \033[31m✗\033[0m $a\n";
+        $falhou[] = $a;
+    }
+} else {
+    echo "  \033[32m✓\033[0m nenhum aviso do PHP nas " . count($telas) . " telas\n";
+}
+
+echo "\n" . str_repeat('─', 60) . "\n";
+if ($falhou) {
+    echo "\033[31m" . count($falhou) . " problema(s).\033[0m\n";
+    exit(1);
+}
+echo "\033[32m" . count($telas) . " telas, todas abrem limpas.\033[0m\n";

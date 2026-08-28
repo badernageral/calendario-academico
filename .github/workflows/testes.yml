@@ -33,3 +33,9 @@ jobs:
 
       - name: Rodar a suíte
         run: php testes/executar.php
+
+      # A suíte acima não abre página nenhuma. Este passo sobe o servidor
+      # embutido e abre todas, cobrando 200 e log sem aviso do PHP — é o que
+      # pega a coluna esquecida num SELECT ou o require fora de ordem.
+      - name: Abrir todas as telas
+        run: php testes/telas.php

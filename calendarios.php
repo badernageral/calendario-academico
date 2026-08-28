@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('calendarios.php?novo=1');
         }
         // Os rótulos do erro dependem do regime do curso escolhido.
-        [$bimestres, $erro] = bimestresDoFormulario(regimeDoCurso($db, $curso));
+        [$bimestres, $erro] = bimestresDoFormulario(regimeDoCurso($db, $curso), $ano);
         if ($erro !== '') {
             flash($erro, 'erro');
             redirect('calendarios.php?novo=1');
@@ -87,8 +87,8 @@ function copiarEventos(PDO $db, int $de, int $para, int $anoDestino): void
         $delta  = $anoDestino - (int) $ev['ano'];
         foreach ($sel as $d) {
             $faixas[] = [
-                'inicio' => (new DateTimeImmutable($d['inicio']))->modify("+$delta year")->format('Y-m-d'),
-                'fim'    => (new DateTimeImmutable($d['fim']))->modify("+$delta year")->format('Y-m-d'),
+                'inicio' => deslocarAno($d['inicio'], $delta),
+                'fim'    => deslocarAno($d['fim'], $delta),
             ];
         }
         salvarFaixas($db, $novo, $faixas);

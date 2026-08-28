@@ -414,11 +414,17 @@ function semestresDosBimestres(array $bimestres): array
  * datas, todas obrigatórias: são elas que delimitam o período letivo do ano, e
  * os dois semestres saem delas.
  *
+ * As oito precisam cair dentro do ano do calendário. A grade só desenha esse
+ * ano, e o motor só marca como letivo o dia que cai dentro de um semestre: um
+ * ano trocado — o que acontece ao repetir as datas do calendário anterior —
+ * deixava o ano inteiro com zero dia letivo, sem marco nenhum na grade e sem
+ * aviso, porque os períodos existiam, só estavam no lugar errado.
+ *
  * Devolve [bimestres, erro]: com erro preenchido, nada deve ser gravado.
  *
  * @return array{0: array<int, array{0: string, 1: string}>, 1: string}
  */
-function bimestresDoFormulario(string $regime): array
+function bimestresDoFormulario(string $regime, int $ano): array
 {
     $bimestres = [];
     $anterior  = null;
@@ -438,6 +444,11 @@ function bimestresDoFormulario(string $regime): array
         if ($anterior !== null && $inicio <= $anterior) {
             return [[], "O {$rot} começa antes de o anterior terminar."];
         }
+        foreach ([$inicio, $fim] as $data) {
+            if ((int) substr($data, 0, 4) !== $ano) {
+                return [[], "No {$rot}, a data {$data} está fora de {$ano}."];
+            }
+        }
         $anterior      = $fim;
         $bimestres[$n] = [$inicio, $fim];
     }
@@ -449,18 +460,43 @@ function bimestresDoFormulario(string $regime): array
  * uma vez: `periodos` não tem filho, então apagar e reinserir é mais simples e
  * mais seguro do que casar linha a linha.
  *
+ * Numa transação porque são sete comandos que só fazem sentido juntos: parando
+ * no meio, o calendário ficaria sem períodos — e sem períodos o ano inteiro
+ * volta a contar como letivo.
+ *
  * @param array<int, array{0: string, 1: string}> $bimestres
  */
+/**
+ * A mesma data, tantos anos adiante. Guarda dia e mês; 29 de fevereiro, que não
+ * existe fora do bissexto, encosta no dia 28 — o último de fevereiro, que é o
+ * que a data queria dizer. O `modify('+1 year')` do PHP joga esse dia para 1º
+ * de março, e o evento saía do mês em que estava.
+ */
+function deslocarAno(string $iso, int $delta): string
+{
+    [$ano, $mes, $dia] = array_map('intval', explode('-', $iso));
+    $ano += $delta;
+    $ultimo = (int) date('t', mktime(0, 0, 0, $mes, 1, $ano));
+    return sprintf('%04d-%02d-%02d', $ano, $mes, min($dia, $ultimo));
+}
+
 function salvarPeriodos(PDO $db, int $calendarioId, array $bimestres): void
 {
-    $db->prepare('DELETE FROM periodos WHERE calendario_id = ?')->execute([$calendarioId]);
-    $ins = $db->prepare('INSERT INTO periodos (calendario_id, tipo, numero, inicio, fim) VALUES (?,?,?,?,?)');
+    $db->beginTransaction();
+    try {
+        $db->prepare('DELETE FROM periodos WHERE calendario_id = ?')->execute([$calendarioId]);
+        $ins = $db->prepare('INSERT INTO periodos (calendario_id, tipo, numero, inicio, fim) VALUES (?,?,?,?,?)');
 
-    foreach ($bimestres as $n => [$inicio, $fim]) {
-        $ins->execute([$calendarioId, 'bimestre', $n, $inicio, $fim]);
-    }
-    foreach (semestresDosBimestres($bimestres) as $n => [$inicio, $fim]) {
-        $ins->execute([$calendarioId, 'semestre', $n, $inicio, $fim]);
+        foreach ($bimestres as $n => [$inicio, $fim]) {
+            $ins->execute([$calendarioId, 'bimestre', $n, $inicio, $fim]);
+        }
+        foreach (semestresDosBimestres($bimestres) as $n => [$inicio, $fim]) {
+            $ins->execute([$calendarioId, 'semestre', $n, $inicio, $fim]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        throw $e;
     }
 }
 
@@ -478,61 +514,6 @@ function bimestresDoCalendario(PDO $db, int $calendarioId): array
         $out[(int) $p['numero']] = [$p['inicio'], $p['fim']];
     }
     return $out;
-}
-
-/**
- * Semestres que vieram do formulário, prontos para gravar. As quatro datas são
- * obrigatórias: sem elas o calendário não tem período letivo definido, e a
- * contagem de dias letivos perde o sentido.
- *
- * Devolve [semestres, erro]: com erro preenchido, nada deve ser gravado.
- *
- * @return array{0: array<int, array{0: string, 1: string}>, 1: string}
- */
-function semestresDoFormulario(): array
-{
-    $semestres = [];
-    foreach ([1, 2] as $n) {
-        $inicio = post("sem{$n}_inicio");
-        $fim    = post("sem{$n}_fim");
-        if ($inicio === '' || $fim === '') {
-            return [[], 'Informe as datas de início e fim dos dois semestres letivos.'];
-        }
-        if ($fim < $inicio) {
-            return [[], "No {$n}º semestre, o fim está antes do início."];
-        }
-        $semestres[$n] = [$inicio, $fim];
-    }
-    if ($semestres[2][0] < $semestres[1][1]) {
-        return [[], 'O 2º semestre começa antes de o 1º terminar.'];
-    }
-    return [$semestres, ''];
-}
-
-/**
- * Datas dos dois semestres de um calendário, como vêm do formulário. O par
- * vazio apaga o semestre — caminho que só sobra para dados antigos, já que o
- * formulário exige as quatro datas.
- *
- * @param array<int, array{0: string, 1: string}> $semestres numero => [inicio, fim]
- */
-function salvarSemestres(PDO $db, int $calendarioId, array $semestres): void
-{
-    $sel = $db->prepare("SELECT id FROM periodos WHERE calendario_id=? AND tipo='semestre' AND numero=?");
-    $up  = $db->prepare('UPDATE periodos SET inicio=?, fim=? WHERE id=?');
-    $ins = $db->prepare("INSERT INTO periodos (calendario_id, tipo, numero, inicio, fim) VALUES (?, 'semestre', ?, ?, ?)");
-    $del = $db->prepare("DELETE FROM periodos WHERE calendario_id=? AND tipo='semestre' AND numero=?");
-
-    foreach ($semestres as $numero => [$inicio, $fim]) {
-        if ($inicio === '' || $fim === '') {
-            $del->execute([$calendarioId, $numero]);
-            continue;
-        }
-        $sel->execute([$calendarioId, $numero]);
-        $pid = $sel->fetchColumn();
-        $pid ? $up->execute([$inicio, $fim, $pid])
-             : $ins->execute([$calendarioId, $numero, $inicio, $fim]);
-    }
 }
 
 function salvarFaixas(PDO $db, int $eventoId, array $faixas): void

@@ -121,8 +121,8 @@ function copiarEventosGlobais(PDO $db, int $anoOrigem, int $anoDestino): array
         $faixas = [];
         foreach ($sel as $d) {
             $faixas[] = [
-                'inicio' => (new DateTimeImmutable($d['inicio']))->modify("$delta year")->format('Y-m-d'),
-                'fim'    => (new DateTimeImmutable($d['fim']))->modify("$delta year")->format('Y-m-d'),
+                'inicio' => deslocarAno($d['inicio'], $delta),
+                'fim'    => deslocarAno($d['fim'], $delta),
             ];
         }
         if (!$faixas) {
