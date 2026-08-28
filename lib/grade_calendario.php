@@ -239,14 +239,15 @@ unset($g_lista, $g_ev, $g_ini);
               <?php endif; ?>
                 <?= e($eng->rotulo($g_ev)) ?> - <?= e($eng->descricaoNaLista($g_ev)) ?>
                 <?php
-                // De onde o item vem, na tela de um calendário: feriado (do
-                // cadastro), global (de todos os calendários do ano) ou local
-                // (só deste). Nas telas de ano a etiqueta não faria sentido —
-                // ali é tudo do mesmo tipo, e ela viraria ruído em toda linha.
+                // De onde o item vem: feriado (do cadastro), global (de todos os
+                // calendários do ano) ou local (só deste). Em Eventos globais a
+                // lista mistura os globais do ano com os feriados, e sem a
+                // etiqueta os dois tipos ficam iguais na linha. Só o cadastro de
+                // Feriados dispensa as duas: lá tudo é feriado.
                 ?>
                 <?= $g_feriado && !$g_feriados ? '<span class="marca feriado">feriado</span>' : '' ?>
                 <?= $g_auto ? '<span class="marca">automático</span>' : '' ?>
-                <?= (!$g_global && !$g_feriado && !$g_auto)
+                <?= (!$g_feriados && !$g_feriado && !$g_auto)
                     ? '<span class="marca ' . ($g_base ? 'global">global' : 'local">local') . '</span>'
                     : '' ?>
                 <?php if ($g_global && !$g_feriado && niveisRotulo($g_ev['nivel']) !== ''): ?>
@@ -332,11 +333,9 @@ unset($g_lista, $g_ev, $g_ini);
   var DIAS = JSON.parse(document.getElementById('dados-dias').textContent);
   var URL = <?= json_encode($g_url) ?>;
   var SEMANA = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
-  // Só a tela de Feriados edita feriado; nas outras ele é leitura.
-  var FERIADO_EDITAVEL = <?= $g_feriados ? 'true' : 'false' ?>;
-  // Telas de ano (Eventos globais e Feriados): lá tudo é do mesmo tipo, e
-  // etiquetar cada linha com "global" não diria nada.
-  var TELA_DE_ANO = <?= $g_global ? 'true' : 'false' ?>;
+  // A tela de Feriados: só nela o feriado se edita, e só nela as etiquetas de
+  // origem sobram — ali tudo é feriado, e dizê-lo em cada linha não informa.
+  var TELA_DE_FERIADOS = <?= $g_feriados ? 'true' : 'false' ?>;
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -365,14 +364,14 @@ unset($g_lista, $g_ev, $g_ini);
       html += '<ul class="list-group list-group-flush">';
       dia.eventos.forEach(function (e) {
         var url = e.feriado ? 'feriados.php?editar=' + e.feriado : URL + 'editar_evento=' + e.id;
-        var editavel = e.auto ? false : (!e.feriado || FERIADO_EDITAVEL);
+        var editavel = e.auto ? false : (!e.feriado || TELA_DE_FERIADOS);
         html += '<li class="list-group-item d-flex align-items-start gap-2 px-0">' +
           '<span class="amostra mt-1" style="background:' + esc(e.cor || 'transparent') + '"></span>' +
           '<span class="flex-grow-1"><span class="d-block">' + esc(e.desc) + '</span>' +
           '<small class="text-muted">' + esc(e.cat || 'sem categoria') +
-          (e.feriado && !FERIADO_EDITAVEL ? ' <span class="marca feriado">feriado</span>' : '') +
+          (e.feriado && !TELA_DE_FERIADOS ? ' <span class="marca feriado">feriado</span>' : '') +
           (e.auto ? ' <span class="marca">automático</span>' : '') +
-          (!e.feriado && !e.auto && !TELA_DE_ANO
+          (!e.feriado && !e.auto && !TELA_DE_FERIADOS
             ? (e.base ? ' <span class="marca global">global</span>' : ' <span class="marca local">local</span>')
             : '') +
           '</small></span>' +
@@ -386,7 +385,7 @@ unset($g_lista, $g_ev, $g_ini);
     document.getElementById('modalDiaCorpo').innerHTML = html;
     // URL já é a da tela em que a grade está. No cadastro de feriados o dia
     // clicado vira dia e mês de um feriado novo, de data fixa.
-    document.getElementById('modalDiaNovo').href = <?= $g_feriados ? 'true' : 'false' ?>
+    document.getElementById('modalDiaNovo').href = TELA_DE_FERIADOS
       ? URL + 'novo=1&dia=' + parseInt(p[2], 10) + '&mes=' + parseInt(p[1], 10)
       : URL + 'nova_data=' + iso;
   });

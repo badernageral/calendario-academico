@@ -5,7 +5,16 @@ require __DIR__ . '/lib/eventos_crud.php';
 $db  = db();
 $ano = anoDaTela(getInt('ano') ?: (int) (postInt('ano') ?: (int) date('Y')), (int) date('Y'));
 
-$voltarPara = 'eventos.php?ano=' . $ano;
+// A caixa "Exibir feriados" nasce marcada: a grade desta tela é o ano inteiro,
+// e sem os feriados ela mostra um ano que não existe — os globais caem em cima
+// deles sem que se veja. Caixa desmarcada não é enviada, então "filtros=1" é a
+// marca de que a resposta veio do formulário; sem ela, é a primeira entrada na
+// tela, e aí vale o padrão.
+$comFeriados = get('filtros') !== '1' || get('feriados') === '1';
+
+// Vai em toda volta a esta tela (salvar, cancelar, editar) para a caixa
+// continuar como estava.
+$voltarPara = 'eventos.php?ano=' . $ano . '&filtros=1&feriados=' . ($comFeriados ? '1' : '0');
 tratarPostEvento($db, $ano, null, $voltarPara);
 
 if (post('acao') === 'copiar_ano') {
@@ -42,10 +51,6 @@ if ($ev && ((int) $ev['ano'] !== $ano || $ev['calendario_id'] !== null)) {
     $ev = null;
 }
 
-// A caixa "Mostrar feriados" não fica guardada: nasce desmarcada a cada
-// entrada na tela, e só o que está na URL a mantém enquanto se navega por aqui.
-$comFeriados = get('feriados') === '1';
-
 $eng = Engine::paraAnoGlobal($db, $ano, $comFeriados);
 
 // data clicada na grade
@@ -70,6 +75,7 @@ head('Eventos globais', 'base');
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body d-flex flex-wrap align-items-end gap-3">
     <form method="get" class="d-flex align-items-end gap-3">
+      <input type="hidden" name="filtros" value="1">
       <div>
         <label class="form-label mb-1">Ano</label>
         <input type="number" name="ano" class="form-control form-control-sm" style="width:110px"
