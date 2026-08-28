@@ -31,6 +31,12 @@ function db(): PDO
     ]);
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec('PRAGMA journal_mode = WAL');
+    // Sem isto, quem esbarra numa escrita em curso recebe "database is locked"
+    // na hora, em vez de esperar. O caso que interessa é o da atualização: duas
+    // abas abertas ao mesmo tempo num banco que ainda não migrou, uma migrando e
+    // a outra levando erro na cara. Cinco segundos é muito mais do que qualquer
+    // escrita daqui leva.
+    $pdo->exec('PRAGMA busy_timeout = 5000');
 
     if ($novo) {
         $pdo->exec((string) file_get_contents(__DIR__ . '/schema.sql'));
