@@ -114,14 +114,3 @@ function salvarUsuario(PDO $db, int $id, string $nome, string $usuario, string $
     $db->prepare('UPDATE usuarios SET nome=?, usuario=?, ativo=?, senha_hash=? WHERE id=?')
        ->execute([$nome, $usuario, $ativo ? 1 : 0, password_hash($senha, PASSWORD_DEFAULT), $id]);
 }
-
-/**
- * O que uma senha precisa ter. Devolve o motivo da recusa, ou string vazia.
- *
- * Oito caracteres, e só. Um sistema de um campus, sem exposição à internet, não
- * ganha nada exigindo símbolo e maiúscula — ganha senha anotada em papel.
- */
-function senhaFraca(string $senha): string
-{
-    return strlen($senha) < 8 ? 'A senha precisa ter ao menos 8 caracteres.' : '';
-}

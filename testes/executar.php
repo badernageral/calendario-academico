@@ -652,8 +652,14 @@ confere('e dois usuários não dividem o mesmo login', (function () use ($db) {
     }
 })(), false);
 
-confere('a senha curta é recusada, a de oito passa',
-    [senhaFraca('1234567') !== '', senhaFraca('12345678') !== ''], [true, false]);
+// Não há tamanho mínimo: a senha é a que quem cadastra escolher. O usuário sai
+// no fim para as contagens abaixo continuarem falando de quem elas esperam.
+confere('uma senha curta serve como qualquer outra', (function () use ($db) {
+    criarUsuario($db, 'Curta', 'curta', '1');
+    $r = autenticar($db, 'curta', '1')['usuario'] ?? null;
+    $db->exec("DELETE FROM usuarios WHERE usuario = 'curta'");
+    return $r;
+})(), 'curta');
 
 // Trancar o sistema por fora é o único estrago que esta tela pode fazer: é o
 // que a contagem de outros ativos existe para impedir.

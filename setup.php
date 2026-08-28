@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'criar') {
 
     $erro = match (true) {
         $nome === '' || $usuario === ''     => 'Informe o nome e o usuário.',
-        senhaFraca($senha) !== ''           => senhaFraca($senha),
+        $senha === ''                       => 'Informe a senha.',
         $senha !== ($_POST['senha2'] ?? '') => 'A confirmação da senha não confere.',
         default                             => '',
     };
@@ -63,10 +63,9 @@ ob_start();
     <label class="form-label small fw-semibold" for="senha">Senha</label>
     <div class="input-group">
       <span class="input-group-text"><i class="bi bi-lock"></i></span>
-      <input type="password" name="senha" id="senha" class="form-control" required minlength="8"
+      <input type="password" name="senha" id="senha" class="form-control" required
              autocomplete="new-password">
     </div>
-    <div class="form-text">Ao menos 8 caracteres.</div>
   </div>
   <div class="mb-3">
     <label class="form-label small fw-semibold" for="senha2">Repita a senha</label>

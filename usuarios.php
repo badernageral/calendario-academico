@@ -22,7 +22,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Na edição, senha vazia quer dizer "não mexe na que já existe";
             // na criação, não há o que manter.
             !$id && $senha === ''                => 'Informe a senha do novo usuário.',
-            $senha !== '' && senhaFraca($senha)  => senhaFraca($senha),
             $senha !== '' && $senha !== ($_POST['senha2'] ?? '') => 'A confirmação da senha não confere.',
             $id && !$ativo && outrosUsuariosAtivos($db, $id) === 0
                 => 'Este é o único usuário ativo: desativá-lo trancaria o sistema.',
@@ -181,10 +180,10 @@ head('Usuários', 'usuarios');
             <div class="col-md-6">
               <label class="form-label" for="u_senha">Senha</label>
               <input type="password" name="senha" id="u_senha" class="form-control"
-                     autocomplete="new-password" <?= $edit ? '' : 'required minlength="8"' ?>>
-              <div class="form-text">
-                <?= $edit ? 'Deixe em branco para manter a senha atual.' : 'Ao menos 8 caracteres.' ?>
-              </div>
+                     autocomplete="new-password" <?= $edit ? '' : 'required' ?>>
+              <?php if ($edit): ?>
+                <div class="form-text">Deixe em branco para manter a senha atual.</div>
+              <?php endif; ?>
             </div>
             <div class="col-md-6">
               <label class="form-label" for="u_senha2">Repita a senha</label>
