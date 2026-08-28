@@ -611,6 +611,36 @@ confere('e voltam também', deslocarAno('2026-03-15', -1), '2025-03-15');
 confere('29 de fevereiro encosta no 28 fora do bissexto', deslocarAno('2024-02-29', 1), '2025-02-28');
 confere('e continua 29 quando o ano de destino é bissexto', deslocarAno('2024-02-29', 4), '2028-02-29');
 
+grupo('Negrito dos marcos de bimestre');
+$db  = bancoLimpo();
+$cal = calendarioBimestral($db, 'anual', BIMESTRES);
+/** Os marcos como o motor os monta, não só o texto deles. */
+$marcosCrus = static function (PDO $db, int $cal): array {
+    $e = Engine::paraCalendario($db, $cal);
+    return array_values(array_filter($e->eventos(), static fn ($ev) => !empty($ev['auto'])));
+};
+confere('de fábrica os quatro marcos saem em negrito',
+    array_values(array_unique(array_map(
+        static fn ($m) => (int) $m['negrito'],
+        $marcosCrus($db, $cal)
+    ))), [1]);
+// Desmarcar em Configurações tira só o negrito: os oito marcos continuam lá e
+// continuam pintando o dia com a cor da categoria.
+confere('desmarcado em Configurações, saem com o peso dos outros',
+    (function () use ($db, $cal, $marcosCrus) {
+        cfgSalvar($db, 'negrito_periodo', '0');
+        cfgEsquecer();
+        $m = $marcosCrus($db, $cal);
+        $out = [
+            array_values(array_unique(array_map(static fn ($x) => (int) $x['negrito'], $m))),
+            array_values(array_unique(array_map(static fn ($x) => (int) $x['pinta_dias'], $m))),
+            count($m),
+        ];
+        cfgSalvar($db, 'negrito_periodo', '1');
+        cfgEsquecer();
+        return $out;
+    })(), [[0], [1], 8]);
+
 grupo('Níveis de ensino em ordem alfabética');
 $db = bancoLimpo();
 // A posição era digitada em cada nível; agora sai do nome. Os quatro de fábrica

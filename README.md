@@ -311,7 +311,7 @@ Regras aplicadas na ordem:
 ### Os marcos de bimestre, escritos pelo sistema
 
 Nos oito dias de início e fim de bimestre o sistema escreve sozinho uma linha na
-lista do mês — a mesma que sai impressa —, **sempre em negrito**:
+lista do mês — a mesma que sai impressa —, em negrito, se assim se quiser:
 
     2  - Início do 1º semestre e 1º bimestre letivo de 2026/1
     17 - Fim do 1º Bimestre
@@ -320,7 +320,8 @@ lista do mês — a mesma que sai impressa —, **sempre em negrito**:
 
 O primeiro bimestre de cada semestre abre o semestre e o último o fecha, e nesses
 dois dias o texto fala das duas coisas. Os **quatro modelos** ficam em
-*Configurações*, com as trocas `{ano}`, `{semestre}` (1 ou 2) e `{bimestre}` — o
+*Configurações*, junto da caixa que decide o **negrito** das quatro, com as
+trocas `{ano}`, `{semestre}` (1 ou 2) e `{bimestre}` — o
 número do bimestre como ele se chama naquele curso. Esvaziar um modelo tira
 aquela linha do calendário.
 

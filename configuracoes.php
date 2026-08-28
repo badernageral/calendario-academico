@@ -17,6 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
         'texto_fim_bimestre'    => post('texto_fim_bimestre'),
         'texto_inicio_bimestre' => post('texto_inicio_bimestre'),
         'texto_fim_semestre'    => post('texto_fim_semestre'),
+        // Caixa desmarcada não é enviada, e é isso que a apaga.
+        'negrito_periodo'       => isset($_POST['negrito_periodo']) ? '1' : '0',
         'orgao'         => post('orgao'),
         'campus'        => post('campus'),
         'cidade'        => post('cidade'),
@@ -120,7 +122,7 @@ head('Configurações', 'configuracoes');
     <div class="card-body">
       <p class="small text-muted">
         O sistema escreve estas quatro linhas sozinho, na lista do mês e no calendário
-        impresso, nos dias de início e fim de cada bimestre — sempre em <strong>negrito</strong>.
+        impresso, nos dias de início e fim de cada bimestre.
         As datas saem de cada calendário; o texto sai daqui.
         Trocas disponíveis: <code>{ano}</code>, <code>{semestre}</code> (1 ou 2) e
         <code>{bimestre}</code>, que é o número do bimestre como ele se chama naquele curso —
@@ -141,6 +143,18 @@ head('Configurações', 'configuracoes');
           <div class="form-text"><?= e($g_ajuda) ?></div>
         </div>
         <?php endforeach; ?>
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="negrito_periodo" id="negrito_periodo"
+                   <?= cfg('negrito_periodo') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="negrito_periodo">Escrever as quatro em negrito</label>
+          </div>
+          <div class="form-text">
+            Vale na lista de cada mês, na tela e no papel. Desmarcado, elas saem com o mesmo
+            peso dos outros eventos — a cor do dia continua sendo a de
+            <em>Início ou Fim de semestre/bimestre letivo</em>.
+          </div>
+        </div>
       </div>
     </div>
   </div>

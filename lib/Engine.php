@@ -266,7 +266,7 @@ final class Engine
         }
     }
 
-    /** Um marco de bimestre como evento do calendário, sempre em negrito. */
+    /** Um marco de bimestre como evento do calendário. */
     private function marco(string $data, string $descricao, ?array $cat, int $ano): void
     {
         if ($descricao === '') {
@@ -280,7 +280,7 @@ final class Engine
             'categoria_id'  => $cat === null ? null : (int) $cat['id'],
             'descricao'     => $descricao,
             'pinta_dias'    => 1,
-            'negrito'       => 1,
+            'negrito'       => cfg('negrito_periodo') === '1' ? 1 : 0,
             'conta_letivo'  => null,   // neutro: primeiro e último dia de aula contam pela regra do dia da semana
             'rotulo'        => null,
             'nivel'         => null,

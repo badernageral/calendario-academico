@@ -528,6 +528,9 @@ function cfgPadroes(): array
         'texto_fim_bimestre'    => 'Fim do {bimestre}º Bimestre',
         'texto_inicio_bimestre' => 'Início do {bimestre}º Bimestre',
         'texto_fim_semestre'    => 'Fim do {bimestre}º Bimestre e Fim do {semestre}º Semestre letivo {ano}/{semestre}',
+        // As quatro linhas em negrito, como sempre saíram. Quem quiser o peso do
+        // resto da lista desmarca em Configurações.
+        'negrito_periodo'       => '1',
         // Cores fixas da grade — as que não vêm da legenda.
         'cor_dia_util'   => '#ffffff',
         'cor_dia_fds'    => '#ccc1da',
@@ -538,14 +541,24 @@ function cfgPadroes(): array
 
 function cfg(string $chave, ?string $padrao = null): string
 {
-    static $cache = null;
-    if ($cache === null) {
-        $cache = [];
+    if (!isset($GLOBALS['cfg_cache'])) {
+        $GLOBALS['cfg_cache'] = [];
         foreach (db()->query('SELECT chave, valor FROM config') as $r) {
-            $cache[$r['chave']] = $r['valor'];
+            $GLOBALS['cfg_cache'][$r['chave']] = $r['valor'];
         }
     }
-    return $cache[$chave] ?? $padrao ?? (cfgPadroes()[$chave] ?? '');
+    return $GLOBALS['cfg_cache'][$chave] ?? $padrao ?? (cfgPadroes()[$chave] ?? '');
+}
+
+/**
+ * Esquece o que já foi lido de `config`. Um pedido web não precisa: ele acaba
+ * no redirect e o processo seguinte lê de novo. Os testes precisam — eles
+ * trocam de banco várias vezes dentro do mesmo processo, e sem isto o segundo
+ * banco responderia com os valores do primeiro.
+ */
+function cfgEsquecer(): void
+{
+    unset($GLOBALS['cfg_cache']);
 }
 
 /** Grava uma configuração. A tela é a única a chamar; o cache morre no redirect. */
