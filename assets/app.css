@@ -20,12 +20,22 @@
    uma viewport sem rolagem tem a posição grampeada em zero. Abrir qualquer
    modal jogava a página para o topo, e fechá-lo já não tinha para onde voltar.
 
-   Dar um overflow explícito ao <html> corta essa herança: o `hidden` passa a
-   valer para a caixa do body, que não rola, e a viewport continua onde estava.
-   O padding que vem junto compensa uma barra de rolagem que agora não some, e
-   sem isso o conteúdo dava um salto de 15px para o lado ao abrir o modal. */
+   Dar um overflow explícito ao <html> corta essa herança e a viewport continua
+   onde estava. Com ela cortada, porém, o que o Bootstrap escreve no body deixa
+   de ter qualquer função e passa a atrapalhar:
+
+   - `overflow: hidden` não trava mais nada, mas faz do body um contêiner de
+     rolagem. A barra lateral e a barra de cima são `sticky`, e sticky se prende
+     ao contêiner de rolagem mais próximo: com o modal aberto elas passavam a se
+     prender ao body em vez da viewport, desgrudavam do topo e subiam e desciam
+     com a página.
+   - `padding-right: 15px` compensa uma barra de rolagem que agora não some, e
+     dava um salto de 15px para o lado ao abrir o modal.
+
+   Os dois são anulados. O !important é necessário porque o Bootstrap os escreve
+   inline, e declaração importante de folha vence estilo inline normal. */
 html { overflow-y: auto; }
-body.modal-open { padding-right: 0 !important; }
+body.modal-open { overflow: visible !important; padding-right: 0 !important; }
 
 body {
   background: #f1f5f9;
