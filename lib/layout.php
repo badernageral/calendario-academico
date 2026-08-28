@@ -118,6 +118,12 @@ function foot(): void
  *
  * A exceção é a tela que voltou com erro: aí a página fica no topo, que é onde
  * está a mensagem dizendo o que impediu de gravar.
+ *
+ * A volta é 'instant' de propósito. O Bootstrap declara `scroll-behavior:
+ * smooth` no :root, e com ela um scrollTo comum vira animação: a página
+ * aparecia no topo e descia deslizando até o lugar, toda vez, que é pior de
+ * olhar do que o salto que isto veio consertar. 'auto' não serve — obedeceria à
+ * regra do CSS; 'instant' é o que a ignora.
  */
 (function () {
   var busca = new URLSearchParams(location.search);
@@ -127,7 +133,7 @@ function foot(): void
   if (guardado !== null) {
     sessionStorage.removeItem(chave);
     if (!<?= !empty($GLOBALS['flash_erro']) ? 'true' : 'false' ?>) {
-      window.scrollTo(0, parseInt(guardado, 10) || 0);
+      window.scrollTo({ top: parseInt(guardado, 10) || 0, behavior: 'instant' });
     }
   }
 
