@@ -374,11 +374,13 @@ table.mes-grade td {
 /* No modal do dia a linha é maior, então a etiqueta acompanha. */
 .list-group-item .marca { font-size: 0.68rem; margin-left: 2px; }
 .eventos-mes form { display: inline; }
+/* Vermelho já em repouso: o cinza que havia aqui se perdia no meio da linha, e
+   o × é o que apaga — quem procura por ele precisa achá-lo sem passar o mouse. */
 .eventos-mes .apagar {
   border: 0; background: none; padding: 0 1px;
-  color: #cbd5e1; font-size: 0.65rem; line-height: 1;
+  color: #dc2626; font-size: 0.65rem; line-height: 1;
 }
-.eventos-mes .apagar:hover { color: #dc2626; background: none; }
+.eventos-mes .apagar:hover { color: #991b1b; background: none; }
 .eventos-mes .sem-evento { color: #94a3b8; font-style: italic; justify-content: center; }
 
 table.eventos td.cor { width: 34px; }
