@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
     // não o formulário de evento —, e a cor é a única coisa delas que se
     // ajusta. A cor do texto não se escolhe: sai da luminância do fundo, para
     // um vermelho escuro não virar número ilegível dentro do quadrado.
-    $enviadas = (array) ($_POST['cor_feriado'] ?? []);
+    $enviadas = (array) ($_POST['cor_automatica'] ?? []);
     $up = $db->prepare('UPDATE categorias SET cor = ?, cor_texto = ? WHERE id = ? AND protegida = 1');
     foreach (categoriasAutomaticas($db) as $cat) {
         $nova = corValida((string) ($enviadas[(int) $cat['id']] ?? ''), (string) $cat['cor']);
@@ -115,15 +115,57 @@ head('Configurações', 'configuracoes');
     </div>
   </div>
 
+  <?php
+  // As automáticas são as categorias que o sistema aplica sozinho. Elas se
+  // dividem em duas famílias com donos diferentes — o cadastro de Feriados e as
+  // datas de cada calendário —, e por isso em dois quadros.
+  $g_automaticas = categoriasAutomaticas($db);
+  $g_marco       = $g_automaticas[CAT_SEMESTRE] ?? null;
+  $g_deFeriado   = array_intersect_key($g_automaticas, array_flip(nomesDeFeriado()));
+
+  /** Um seletor de cor de categoria automática, do jeito que os dois quadros usam. */
+  $g_campoCor = static function (array $cat, string $nome, string $ajuda): void { ?>
+    <div class="col-md-3">
+      <label class="form-label" for="cor_automatica_<?= (int) $cat['id'] ?>"><?= e($nome) ?></label>
+      <input type="color" name="cor_automatica[<?= (int) $cat['id'] ?>]" id="cor_automatica_<?= (int) $cat['id'] ?>"
+             class="form-control form-control-color w-100" value="<?= e($cat['cor']) ?>">
+      <div class="form-text"><?= $ajuda ?></div>
+    </div>
+  <?php };
+  ?>
+
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-transparent fw-semibold">
-      <i class="bi bi-bookmark-star me-1 text-primary"></i>Marcos de semestre e bimestre
+      <i class="bi bi-bookmark-star me-1 text-primary"></i>Eventos automáticos
     </div>
     <div class="card-body">
       <p class="small text-muted">
-        O sistema escreve estas quatro linhas sozinho, na lista do mês e no calendário
-        impresso, nos dias de início e fim de cada bimestre.
-        As datas saem de cada calendário; o texto sai daqui.
+        Nos dias de início e fim de cada bimestre o sistema escreve sozinho uma linha na lista do
+        mês e no calendário impresso, e pinta o dia. As datas saem de cada calendário; a cor, o
+        peso da letra e o texto saem daqui.
+      </p>
+      <div class="row g-3 align-items-start">
+        <?php if ($g_marco): $g_campoCor($g_marco, 'Cor do dia', 'Prioridade ' . (int) $g_marco['prioridade']
+            . ' — vence a cor do dia sobre as de alcance menor. A cor do texto acompanha o fundo sozinha.'); ?>
+        <?php endif; ?>
+        <div class="col-md-9">
+          <label class="form-label d-block">Peso da letra</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="negrito_periodo" id="negrito_periodo"
+                   <?= cfg('negrito_periodo') === '1' ? 'checked' : '' ?>>
+            <label class="form-check-label" for="negrito_periodo">Escrever as quatro linhas em negrito</label>
+          </div>
+          <div class="form-text">
+            Vale na lista de cada mês, na tela e no papel. Desmarcado, elas saem com o mesmo peso
+            dos outros eventos — a cor do dia, ao lado, não muda.
+          </div>
+        </div>
+      </div>
+
+      <hr class="my-4">
+
+      <p class="small text-muted">
+        <strong>O texto das quatro linhas.</strong>
         Trocas disponíveis: <code>{ano}</code>, <code>{semestre}</code> (1 ou 2) e
         <code>{bimestre}</code>, que é o número do bimestre como ele se chama naquele curso —
         1 a 4 no anual, 1 ou 2 dentro de cada semestre no semestral.
@@ -143,25 +185,33 @@ head('Configurações', 'configuracoes');
           <div class="form-text"><?= e($g_ajuda) ?></div>
         </div>
         <?php endforeach; ?>
-        <div class="col-12">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="negrito_periodo" id="negrito_periodo"
-                   <?= cfg('negrito_periodo') === '1' ? 'checked' : '' ?>>
-            <label class="form-check-label" for="negrito_periodo">Escrever as quatro em negrito</label>
-          </div>
-          <div class="form-text">
-            Vale na lista de cada mês, na tela e no papel. Desmarcado, elas saem com o mesmo
-            peso dos outros eventos — a cor do dia continua sendo a de
-            <em>Início ou Fim de semestre/bimestre letivo</em>.
-          </div>
-        </div>
       </div>
     </div>
   </div>
 
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-transparent fw-semibold">
-      <i class="bi bi-palette2 me-1 text-primary"></i>Cores fixas do calendário
+      <i class="bi bi-flag me-1 text-primary"></i>Feriados
+    </div>
+    <div class="card-body">
+      <p class="small text-muted">
+        A cor de cada tipo, aplicada pelo cadastro em <a href="feriados.php">Feriados</a>. Os quatro
+        não se criam nem se editam na tela de Legenda — nome e prioridade são fixos —, mas saem na
+        legenda do calendário impresso. Dando a mesma cor aos três primeiros, a legenda impressa
+        junta os três numa linha só, <em>Feriado</em>.
+      </p>
+      <div class="row g-3">
+        <?php foreach ($g_deFeriado as $g_nome => $g_cat): ?>
+          <?php $g_campoCor($g_cat, $g_nome, 'Prioridade ' . (int) $g_cat['prioridade'] . ' — vence a cor do dia '
+              . ((int) $g_cat['prioridade'] === 99 ? 'sobre todas as outras' : 'sobre as de alcance menor') . '.'); ?>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-transparent fw-semibold">
+      <i class="bi bi-palette2 me-1 text-primary"></i>Cores gerais da grade
     </div>
     <div class="card-body">
       <p class="small text-muted">
@@ -180,27 +230,6 @@ head('Configurações', 'configuracoes');
           <input type="color" name="<?= $g_chave ?>" id="<?= $g_chave ?>"
                  class="form-control form-control-color w-100" value="<?= e(cfg($g_chave)) ?>">
           <div class="form-text"><?= e($g_ajuda) ?></div>
-        </div>
-        <?php endforeach; ?>
-      </div>
-
-      <hr class="my-4">
-
-      <p class="small text-muted mb-3">
-        <strong>Cores das legendas automáticas.</strong> São as que o sistema aplica sozinho:
-        as quatro de feriado, que vêm do cadastro em <a href="feriados.php">Feriados</a>, e a de
-        início e fim de semestre e de bimestre, que sai das datas de cada calendário. Não se
-        criam nem se editam na tela de Legenda, mas saem na legenda do calendário impresso.
-        A cor do texto acompanha o fundo sozinha.
-      </p>
-      <div class="row g-3">
-        <?php foreach (categoriasAutomaticas($db) as $g_nome => $g_cat): ?>
-        <div class="col-md-3">
-          <label class="form-label" for="cor_feriado_<?= (int) $g_cat['id'] ?>"><?= e($g_nome) ?></label>
-          <input type="color" name="cor_feriado[<?= (int) $g_cat['id'] ?>]" id="cor_feriado_<?= (int) $g_cat['id'] ?>"
-                 class="form-control form-control-color w-100" value="<?= e($g_cat['cor']) ?>">
-          <div class="form-text">Prioridade <?= (int) $g_cat['prioridade'] ?> — vence a cor do dia
-            <?= (int) $g_cat['prioridade'] === 99 ? 'sobre todas as outras' : 'sobre as de alcance menor' ?>.</div>
         </div>
         <?php endforeach; ?>
       </div>

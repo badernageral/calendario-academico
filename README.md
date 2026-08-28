@@ -241,20 +241,21 @@ Para conferir o que está carregado — as três precisam aparecer:
    dois bimestres recuados sob o semestre a que pertencem, e a soma do ano
 7. **Gerar** — abre o calendário pronto. `Ctrl+P` → A4, paisagem, **gráficos de
    fundo ativados** → PDF.
-8. **Configurações** — o que vale para o sistema inteiro, em cinco blocos:
+8. **Configurações** — o que vale para o sistema inteiro, em seis blocos:
    *Instituição* (órgão do cabeçalho impresso, campus e cidade), *Documento
-   gerado* (modelo do título, com `{curso}`, `{nivel}` e `{ano}`), *Padrões de um calendário
-   novo* (situação e meta de dias letivos por semestre, que cada calendário
-   ajusta depois), *Marcos de semestre e bimestre* (os quatro textos que o
-   sistema escreve sozinho nos dias de início e fim de bimestre) e
-   *Cores fixas do calendário* (dias de segunda a sexta, sábados
-   e domingos, faixa do nome do mês, cabeçalho dos dias úteis e — no fim do
-   bloco — a **cor das legendas automáticas**: os quatro tipos de feriado e a de
-   início e fim de semestre e bimestre. A cor é a única coisa ajustável nessas
-   cinco, e a cor do texto acompanha o fundo sozinha, para um fundo escuro não
-   deixar o número ilegível). O fuso horário
-   é fixo em `America/Araguaina`, em `lib/boot.php` — o IFTO inteiro fica no
-   Tocantins.
+   gerado* (modelo do título, com `{curso}`, `{nivel}` e `{ano}`), *Padrão de um
+   calendário novo* (a situação, que cada calendário ajusta depois),
+   *Eventos automáticos* (tudo sobre as linhas que o sistema escreve nos dias de
+   início e fim de bimestre: a cor do dia, o negrito e os quatro textos),
+   *Feriados* (a cor de cada um dos quatro tipos, aplicada pelo cadastro de
+   Feriados) e *Cores gerais da grade* (dias de segunda a sexta, sábados e
+   domingos, faixa do nome do mês, cabeçalho dos dias úteis).
+
+   Nas cinco categorias automáticas — as quatro de feriado e a de início e fim de
+   período — a cor é a única coisa ajustável: nome e prioridade são fixos, e a cor
+   do texto acompanha o fundo sozinha, para um fundo escuro não deixar o número
+   ilegível. O fuso horário é fixo em `America/Araguaina`, em `lib/boot.php` — o
+   IFTO inteiro fica no Tocantins.
    **Numa instalação nova, *campus* e *cidade* vêm como `CAMPUS MIDGARD` e
    `Midgard`** — valores de exemplo, e a primeira coisa a trocar. O órgão já vem
    certo, porque é o mesmo em todo o IFTO; o campus, não, e ele sai impresso no
