@@ -611,6 +611,47 @@ confere('e voltam também', deslocarAno('2026-03-15', -1), '2025-03-15');
 confere('29 de fevereiro encosta no 28 fora do bissexto', deslocarAno('2024-02-29', 1), '2025-02-28');
 confere('e continua 29 quando o ano de destino é bissexto', deslocarAno('2024-02-29', 4), '2028-02-29');
 
+grupo('Migrações do banco');
+$db = bancoLimpo();
+confere('um banco novo tem a tabela do histórico',
+    (int) $db->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='migracoes'")->fetchColumn(), 1);
+// O schema.sql já descreve o banco depois de todas elas: rodá-las num banco
+// recém-criado repetiria o que acabou de ser criado, e a primeira com um ALTER
+// falharia. Por isso nascem marcadas.
+confere('e nasce com as declaradas marcadas, sem rodar nenhuma',
+    $db->query('SELECT nome FROM migracoes ORDER BY nome')->fetchAll(PDO::FETCH_COLUMN),
+    array_keys(migracoes()));
+
+// Daqui para baixo, um registro de mentira: o de verdade fica vazio até a
+// primeira mudança de schema depois da 1.0, e o mecanismo tem de estar coberto
+// antes disso.
+$fingidas = [
+    'a_que_passa'  => static fn (PDO $p) => $p->exec("ALTER TABLE cursos ADD COLUMN teste TEXT NOT NULL DEFAULT 'x'"),
+    'a_que_falha'  => static fn (PDO $p) => $p->exec('ALTER TABLE nao_existe ADD COLUMN y TEXT'),
+];
+$db->exec('DROP TABLE migracoes');   // como chega um banco anterior ao histórico
+
+confere('a que falha sobe o erro, com o nome dentro', (function () use ($db, $fingidas) {
+    try {
+        migrar($db, $fingidas);
+        return '(não lançou)';
+    } catch (RuntimeException $e) {
+        return substr($e->getMessage(), 0, strpos($e->getMessage(), ':'));
+    }
+})(), "Falha na migração 'a_que_falha'");
+confere('só a que passou fica registrada',
+    $db->query('SELECT nome FROM migracoes')->fetchAll(PDO::FETCH_COLUMN), ['a_que_passa']);
+confere('e o que ela fez está no banco',
+    in_array('teste', $db->query('PRAGMA table_info(cursos)')->fetchAll(PDO::FETCH_COLUMN, 1), true), true);
+// Roda de novo: a registrada não repete — repetir o ALTER dela daria erro.
+confere('rodar de novo não repete a que já passou', (function () use ($db, $fingidas) {
+    try { migrar($db, $fingidas); } catch (RuntimeException $e) {}
+    return $db->query('SELECT nome FROM migracoes')->fetchAll(PDO::FETCH_COLUMN);
+})(), ['a_que_passa']);
+$db->exec('ALTER TABLE cursos DROP COLUMN teste');
+$db->exec('DELETE FROM migracoes');
+marcarMigracoesComoAplicadas($db);
+
 grupo('Negrito dos marcos de bimestre');
 $db  = bancoLimpo();
 $cal = calendarioBimestral($db, 'anual', BIMESTRES);

@@ -378,7 +378,8 @@ divergência.
     categorias.php          legenda: cores, efeito no cômputo, prioridade
     backup.php              exportar e importar o banco
     gerar.php               saída no formato da planilha (tela e impressão)
-    lib/                    db.php, Engine.php (cálculo), util.php, schema.sql,
+    lib/                    db.php, migracoes.php (histórico do schema),
+                            Engine.php (cálculo), util.php, schema.sql,
                             layout.php (barra lateral), grade_calendario.php
                             (a grade anual, usada pelas três telas),
                             feriados.php (as regras de data dos feriados),
@@ -419,6 +420,22 @@ ninguém notar.
 Cada teste monta o cenário num banco temporário, criado do próprio `schema.sql`
 com o seed de fábrica; a base do site não é tocada. O GitHub Actions roda as
 duas e um `php -l` em todo arquivo a cada push.
+
+## Mudanças no banco
+
+O `schema.sql` é o que uma instalação nova recebe. Um banco que já existe é
+atualizado por `lib/migracoes.php`: uma lista ordenada de nome => o que fazer,
+em que cada item roda **uma vez**, dentro de uma transação, e o nome fica
+gravado na tabela `migracoes` no mesmo commit. Um banco recém-criado nasce com
+todas marcadas como aplicadas — ele já saiu do schema com elas dentro.
+
+Ao mudar o schema, **mexa nos dois**: a migração, para os bancos que existem, e
+o `schema.sql`, para os que ainda vão nascer. Uma migração já lançada não se
+edita nem se apaga — quem já a rodou não a roda de novo; para corrigir, escreva
+outra. E não chame funções da aplicação de dentro dela: `seed()` e
+`cfgPadroes()` vão ter mudado quando aquele banco antigo finalmente rodar, e a
+migração precisa continuar fazendo o que fazia. Escreva o SQL com os valores da
+época.
 
 ## Migrar de uma planilha .ods
 

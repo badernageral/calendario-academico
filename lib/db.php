@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/migracoes.php';
+
 const APP_ROOT = __DIR__ . '/..';
 
 // No Apache o banco fica em data/, dentro do site. No aplicativo desktop ele
@@ -33,6 +35,10 @@ function db(): PDO
     if ($novo) {
         $pdo->exec((string) file_get_contents(__DIR__ . '/schema.sql'));
         seed($pdo);
+        // O schema.sql já descreve o banco depois de todas as migrações, então
+        // elas nascem marcadas como aplicadas — rodá-las aqui seria repetir o
+        // que acabou de ser criado, e a primeira que fizesse um ALTER falharia.
+        marcarMigracoesComoAplicadas($pdo);
     } else {
         migrar($pdo);
     }
@@ -40,219 +46,72 @@ function db(): PDO
     return $pdo;
 }
 
-/**
- * Ajustes de bases criadas por versões anteriores. Cada bloco checa antes de
- * mexer, então rodar de novo não faz nada.
- */
-function migrar(PDO $pdo): void
+/** A tabela do histórico, criada na primeira vez que alguém pergunta por ele. */
+function tabelaDeMigracoes(PDO $pdo): void
 {
-    // Os níveis de ensino eram uma lista fixa no código; agora têm tela própria.
     $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS niveis (
-             id    INTEGER PRIMARY KEY AUTOINCREMENT,
-             chave TEXT NOT NULL UNIQUE,
-             nome  TEXT NOT NULL,
-             ordem INTEGER NOT NULL DEFAULT 0
-         )'
-    );
-    if ((int) $pdo->query('SELECT COUNT(*) FROM niveis')->fetchColumn() === 0) {
-        semearNiveis($pdo);
-    }
-
-    // Categorias automáticas passaram a ser marcadas à parte das protegidas: a
-    // protegida não se exclui e tem prioridade fixa; a oculta some da escolha
-    // de categoria de um evento, porque quem a aplica é o motor.
-    $colunas = $pdo->query('PRAGMA table_info(categorias)')->fetchAll(PDO::FETCH_COLUMN, 1);
-    if (!in_array('oculta', $colunas, true)) {
-        $pdo->exec('ALTER TABLE categorias ADD COLUMN oculta INTEGER NOT NULL DEFAULT 0');
-        $pdo->exec('UPDATE categorias SET oculta = 1 WHERE protegida = 1');
-    }
-    // A legenda de início/fim de semestre e bimestre nasceu protegida: o motor
-    // é que a aplica, e a cor dela mora em Configurações. Num banco anterior
-    // ela ou não existe, ou existe com o nome velho ("Início ou Fim de semestre
-    // letivo"), de quando era uma legenda comum — nesse caso é a mesma coisa
-    // com outro nome, e renomear preserva a cor que o campus já tinha escolhido.
-    $temNova = (int) $pdo->query('SELECT COUNT(*) FROM categorias WHERE nome = ' . $pdo->quote(CAT_SEMESTRE))->fetchColumn();
-    if ($temNova === 0) {
-        $velha = $pdo->query("SELECT id FROM categorias WHERE nome = 'Início ou Fim de semestre letivo'")->fetchColumn();
-        if ($velha !== false) {
-            $pdo->prepare('UPDATE categorias SET nome = ? WHERE id = ?')->execute([CAT_SEMESTRE, $velha]);
-        } else {
-            $pdo->prepare(
-                'INSERT INTO categorias (nome, cor, cor_texto, letivo, prioridade, na_legenda, ordem)
-                 VALUES (?,?,?,NULL,?,1,?)'
-            )->execute([CAT_SEMESTRE, '#9bc2e6', '#000000', 50, 11]);
-        }
-    }
-
-    // A lista de categorias fixas mudou com o tempo; basta uma fora do lugar
-    // para valer a pena reaplicar todas — são quatro UPDATEs por nome.
-    $fora = $pdo->prepare(
-        'SELECT COUNT(*) FROM categorias
-          WHERE nome = ? AND (protegida = 0 OR prioridade <> ? OR oculta <> ?)'
-    );
-    foreach (categoriasFixas() as $nome => [$prio, $oculta]) {
-        $fora->execute([$nome, $prio, $oculta]);
-        if ((int) $fora->fetchColumn() > 0) {
-            aplicarCategoriasFixas($pdo);
-            break;
-        }
-    }
-
-    // A meta também tinha um padrão em `config`, que ficou órfão quando o campo
-    // saiu de Configurações: nada mais o lê.
-    $pdo->exec("DELETE FROM config WHERE chave = 'meta_letivos'");
-
-    // A meta de dias letivos saiu: quem confere o número agora são os seis
-    // contadores no topo da tela do calendário — dois de semestre e quatro de
-    // bimestre —, e não um alvo digitado a mais em cada calendário. DROP COLUMN
-    // existe no SQLite desde a 3.35; num mais antigo as colunas ficam onde
-    // estão, sem uso, que é inofensivo.
-    $colunasCal = $pdo->query('PRAGMA table_info(calendarios)')->fetchAll(PDO::FETCH_COLUMN, 1);
-    foreach (['meta_letivos_s1', 'meta_letivos_s2'] as $morta) {
-        if (in_array($morta, $colunasCal, true)) {
-            try {
-                $pdo->exec("ALTER TABLE calendarios DROP COLUMN $morta");
-            } catch (PDOException $e) {
-                // SQLite velho demais: deixa a coluna quieta.
-            }
-        }
-    }
-
-    // Inativar um feriado saiu: era um estado a mais para uma coisa que se
-    // resolve excluindo — e um feriado inativo não aparecia na grade, então
-    // ficava difícil de reencontrar. Quem tinha algum inativo o recupera ativo,
-    // e agora pode simplesmente apagá-lo pelo X da grade.
-    $colunasFeriados = $pdo->query('PRAGMA table_info(feriados)')->fetchAll(PDO::FETCH_COLUMN, 1);
-    if (in_array('ativo', $colunasFeriados, true)) {
-        try {
-            $pdo->exec('ALTER TABLE feriados DROP COLUMN ativo');
-        } catch (PDOException $e) {
-            // SQLite velho demais: a coluna fica, e nada mais a lê.
-        }
-    }
-
-    // O nível de ensino tinha uma posição digitada para ordenar as listas. Eram
-    // quatro níveis e um número a manter à mão em cada um: a ordem alfabética
-    // diz a mesma coisa sem pedir nada. DROP COLUMN existe no SQLite desde a
-    // 3.35; num mais antigo a coluna fica onde está, sem uso.
-    $colunasNiveis = $pdo->query('PRAGMA table_info(niveis)')->fetchAll(PDO::FETCH_COLUMN, 1);
-    if (in_array('ordem', $colunasNiveis, true)) {
-        try {
-            $pdo->exec('ALTER TABLE niveis DROP COLUMN ordem');
-        } catch (PDOException $e) {
-            // SQLite velho demais: deixa a coluna quieta.
-        }
-    }
-
-    // Um calendário tem no máximo um período de cada tipo e número. O índice
-    // único diz isso ao banco: salvarPeriodos() apaga e reinsere numa
-    // transação, mas dois pedidos ao mesmo tempo passariam por fora dela e
-    // deixariam o calendário com bimestres repetidos, que o motor leria como
-    // datas contraditórias. Num banco que já tenha a repetição o CREATE falha —
-    // e nesse caso é melhor deixar como está do que recusar a abrir o sistema.
-    try {
-        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_periodos_unico
-                    ON periodos(calendario_id, tipo, numero)');
-    } catch (PDOException $e) {
-        // Duplicatas de um banco antigo: seguem lá, sem o índice.
-    }
-
-    // O curso passou a dizer se as disciplinas dele são anuais ou semestrais.
-    // Quem já tinha banco entra como 'semestral', que é o caso comum e o mesmo
-    // padrão do schema. O ALTER do SQLite não carrega o CHECK da tabela nova —
-    // quem peneira o valor é a tela de Cursos, e ela aceita só os dois.
-    $colunasCursos = $pdo->query('PRAGMA table_info(cursos)')->fetchAll(PDO::FETCH_COLUMN, 1);
-    if (!in_array('regime', $colunasCursos, true)) {
-        $pdo->exec("ALTER TABLE cursos ADD COLUMN regime TEXT NOT NULL DEFAULT 'semestral'");
-    }
-
-    // Fim de semana e sábado letivo deixaram de ser legenda. O primeiro virou
-    // cor fixa da grade (em Configurações) e o segundo saiu: quem faz um sábado
-    // contar é o campo "Conta como letivo" do próprio evento. A cor escolhida
-    // para o fim de semana vira o valor inicial da configuração, para a grade
-    // continuar igual ao que já estava na tela.
-    $st = $pdo->query("SELECT cor FROM categorias WHERE nome = 'Fim de Semana'");
-    $corFds = (string) ($st->fetchColumn() ?: '');
-    if ($corFds !== '') {
-        $pdo->prepare('INSERT INTO config (chave, valor) VALUES (?,?)
-                       ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor')
-            ->execute(['cor_dia_fds', $corFds]);
-        $pdo->exec("DELETE FROM categorias WHERE nome IN ('Fim de Semana', 'Representação de Dia Letivo')");
-    }
-
-    // Feriados deixaram de ser inseridos ano a ano: agora são um cadastro só,
-    // que vale para todos os anos.
-    $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS feriados (
-             id           INTEGER PRIMARY KEY AUTOINCREMENT,
-             nome         TEXT NOT NULL,
-             tipo         TEXT NOT NULL DEFAULT 'fixo',
-             dia          INTEGER,
-             mes          INTEGER,
-             deslocamento INTEGER,
-             categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
-             ativo        INTEGER NOT NULL DEFAULT 1,
-             CHECK (tipo IN ('fixo','movel')),
-             CHECK ((tipo = 'fixo'  AND dia BETWEEN 1 AND 31 AND mes BETWEEN 1 AND 12)
-                 OR (tipo = 'movel' AND deslocamento IS NOT NULL))
+        "CREATE TABLE IF NOT EXISTS migracoes (
+             nome        TEXT PRIMARY KEY,
+             aplicada_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
          )"
     );
-    if ((int) $pdo->query('SELECT COUNT(*) FROM feriados')->fetchColumn() === 0) {
-        semearFeriados($pdo);
-    }
+}
 
-    // A categoria única "Feriado" virou três, por origem da norma.
-    $tem = (int) $pdo->query("SELECT COUNT(*) FROM categorias WHERE nome = 'Feriado'")->fetchColumn();
-    if ($tem === 0) {
-        return;
-    }
-
-    $pdo->beginTransaction();
-    $pdo->exec("UPDATE categorias SET ordem = ordem + 2 WHERE ordem > 2 AND protegida = 0");
-    $pdo->exec("UPDATE categorias SET nome = 'Feriado Nacional' WHERE nome = 'Feriado'");
-    $st = $pdo->prepare(
-        'INSERT INTO categorias (nome, cor, cor_texto, letivo, prioridade, na_legenda, ordem, protegida)
-         VALUES (?,?,?,?,?,?,?,?)'
-    );
-    $st->execute(['Feriado Estadual', '#ff0000', '#000000', 0, 94, 1, 3, 0]);
-    $st->execute(['Feriado Municipal', '#ff0000', '#000000', 0, 93, 1, 4, 0]);
-
-    // Reclassifica o que já estava cadastrado pela redação da descrição —
-    // "(Feriado Estadual)", "(Feriado municipal)". O resto fica em Nacional.
-    $pdo->exec(
-        "UPDATE eventos SET categoria_id = (SELECT id FROM categorias WHERE nome = 'Feriado Estadual')
-          WHERE categoria_id = (SELECT id FROM categorias WHERE nome = 'Feriado Nacional')
-            AND descricao LIKE '%estadual%'"
-    );
-    $pdo->exec(
-        "UPDATE eventos SET categoria_id = (SELECT id FROM categorias WHERE nome = 'Feriado Municipal')
-          WHERE categoria_id = (SELECT id FROM categorias WHERE nome = 'Feriado Nacional')
-            AND (descricao LIKE '%municipal%' OR descricao LIKE '%munic_pio%')"
-    );
-    $pdo->commit();
+/** Os nomes já aplicados neste banco. */
+function migracoesAplicadas(PDO $pdo): array
+{
+    tabelaDeMigracoes($pdo);
+    return $pdo->query('SELECT nome FROM migracoes ORDER BY nome')->fetchAll(PDO::FETCH_COLUMN);
 }
 
 /**
- * Legendas de que o sistema depende: nome, prioridade e cor fora do alcance da
- * tela de Legenda.
+ * Registra todas sem rodar nenhuma: é o marco zero de um banco recém-criado.
  *
- * Feriado sempre vence a cor do dia — entre eles, quem tem alcance maior vence
- * (nacional > estadual > municipal > ponto facultativo). Por isso ficam acima
- * do alcance do formulário, que vai de 1 a PRIORIDADE_MAX.
- *
- * As quatro são `oculta`: não se escolhem como categoria de um evento, porque
- * quem as aplica é o cadastro de feriados — inclusive as emendas, que entram lá
- * como Ponto Facultativo.
- *
- * As quatro continuam saindo na legenda impressa, e a cor de cada uma se troca
- * em Configurações — é a única coisa delas que se ajusta.
- *
- * O nome é a identidade: é por ele que o cadastro de feriados encontra o tipo e
- * que migrar() reconhece as quatro. Por isso a tela de Legenda não o edita.
- *
- * nome => [prioridade, oculta]
+ * $lista existe para os testes poderem passar um registro de mentira; em uso
+ * normal fica de fora e vale o de lib/migracoes.php.
  */
+function marcarMigracoesComoAplicadas(PDO $pdo, ?array $lista = null): void
+{
+    tabelaDeMigracoes($pdo);
+    $st = $pdo->prepare('INSERT OR IGNORE INTO migracoes (nome) VALUES (?)');
+    foreach (array_keys($lista ?? migracoes()) as $nome) {
+        $st->execute([$nome]);
+    }
+}
+
+/**
+ * Aplica no banco as migrações que ainda faltam, na ordem em que estão
+ * declaradas em lib/migracoes.php, e grava o nome de cada uma.
+ *
+ * Roda em toda requisição sobre um banco existente. Num banco em dia isso é uma
+ * consulta a uma tabela de poucas linhas; havendo o que fazer, cada migração vai
+ * numa transação com o próprio registro, então uma que falhe no meio não deixa
+ * metade aplicada nem se dá por feita.
+ *
+ * Um erro aqui não é escondido: sobe. Um banco meio migrado é pior do que uma
+ * tela que não abre — a tela avisa, o banco silencioso, não.
+ */
+function migrar(PDO $pdo, ?array $lista = null): void
+{
+    $feitas = migracoesAplicadas($pdo);
+    $registra = $pdo->prepare('INSERT INTO migracoes (nome) VALUES (?)');
+
+    foreach ($lista ?? migracoes() as $nome => $passo) {
+        if (in_array($nome, $feitas, true)) {
+            continue;
+        }
+        $pdo->beginTransaction();
+        try {
+            $passo($pdo);
+            $registra->execute([$nome]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw new RuntimeException("Falha na migração '$nome': " . $e->getMessage(), 0, $e);
+        }
+    }
+}
+
 function categoriasFixas(): array
 {
     return [
