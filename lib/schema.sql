@@ -54,7 +54,6 @@ CREATE TABLE IF NOT EXISTS feriados (
     mes          INTEGER,
     deslocamento INTEGER,
     categoria_id INTEGER REFERENCES categorias(id) ON DELETE SET NULL,
-    ativo        INTEGER NOT NULL DEFAULT 1,
     CHECK (tipo IN ('fixo','movel')),
     CHECK ((tipo = 'fixo'  AND dia BETWEEN 1 AND 31 AND mes BETWEEN 1 AND 12)
         OR (tipo = 'movel' AND deslocamento IS NOT NULL))

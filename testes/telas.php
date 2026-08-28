@@ -40,6 +40,7 @@ $db->prepare('INSERT INTO cursos (nome, nivel, regime, ativo) VALUES (?,?,?,1)')
 $curso = (int) $db->lastInsertId();
 $db->prepare('INSERT INTO calendarios (curso_id, ano) VALUES (?,?)')->execute([$curso, 2026]);
 $cal = (int) $db->lastInsertId();
+$feriado = (int) $db->query('SELECT MIN(id) FROM feriados')->fetchColumn();
 salvarPeriodos($db, $cal, [
     1 => ['2026-02-02', '2026-04-10'], 2 => ['2026-04-13', '2026-06-30'],
     3 => ['2026-08-03', '2026-10-02'], 4 => ['2026-10-05', '2026-12-18'],
@@ -84,6 +85,11 @@ $telas = [
     'calendarios.php?novo=1',
     "calendario.php?id=$cal",
     "calendario.php?id=$cal&novo=1",
+    // O feriado se edita das três telas, em modal, sem sair de onde se está.
+    "calendario.php?id=$cal&editar_feriado=$feriado",
+    "eventos.php?ano=2026&editar_feriado=$feriado",
+    "feriados.php?ano=2026&editar_feriado=$feriado",
+    'feriados.php?ano=2026&novo=1',
     "editar_calendario.php?id=$cal",
     "gerar.php?id=$cal",
     'cursos.php',

@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/lib/boot.php';
 require __DIR__ . '/lib/eventos_crud.php';
+require __DIR__ . '/lib/feriados_crud.php';
 
 $db  = db();
 $ano = anoDaTela(getInt('ano') ?: (int) (postInt('ano') ?: (int) date('Y')), (int) date('Y'));
@@ -16,6 +17,11 @@ $comFeriados = get('filtros') !== '1' || get('feriados') === '1';
 // continuar como estava.
 $voltarPara = 'eventos.php?ano=' . $ano . '&filtros=1&feriados=' . ($comFeriados ? '1' : '0');
 tratarPostEvento($db, $ano, null, $voltarPara);
+// Com a caixa de feriados marcada eles aparecem na grade daqui, e alterar um
+// não deve tirar ninguém desta tela.
+tratarPostFeriado($db, $voltarPara);
+
+$feriadoEdit = feriadoEmEdicao($db);
 
 if (post('acao') === 'copiar_ano') {
     $origem = postInt('origem', 0);
@@ -133,6 +139,7 @@ head('Eventos globais', 'base');
 </div>
 
 <?php $baseComum = true; $dataPadrao = $novaData; require __DIR__ . '/lib/form_evento.php'; ?>
+<?php require __DIR__ . '/lib/form_feriado.php'; ?>
 <?php $gradeGlobal = true; require __DIR__ . '/lib/grade_calendario.php'; ?>
 
 <?php foot(); ?>

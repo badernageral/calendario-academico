@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/lib/boot.php';
 require __DIR__ . '/lib/eventos_crud.php';
+require __DIR__ . '/lib/feriados_crud.php';
 
 $db = db();
 $id = getInt('id') ?: postInt('cal_id', 0);
@@ -33,7 +34,12 @@ $voltarPara = 'calendario.php?id=' . $id
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     tratarPostEvento($db, $ano, $id, $voltarPara);
+    // O feriado aparece na grade daqui, então também se altera daqui — e volta
+    // para esta tela, com as caixas como estavam.
+    tratarPostFeriado($db, $voltarPara);
 }
+
+$feriadoEdit = feriadoEmEdicao($db);
 
 $cats   = $db->query('SELECT * FROM categorias ORDER BY ordem, nome')->fetchAll();
 $ev     = ($idEv = getInt('editar_evento')) ? carregarEvento($db, $idEv) : null;
@@ -135,6 +141,7 @@ $contadores = [
 <?php unset($g_rot, $g_val, $g_classe); ?>
 
 <?php $baseComum = false; $dataPadrao = $novaData; require __DIR__ . '/lib/form_evento.php'; ?>
+<?php require __DIR__ . '/lib/form_feriado.php'; ?>
 
 <?php
 $gradeVerFeriados = $verFeriados;

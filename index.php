@@ -14,7 +14,7 @@ $nCursos = $num('SELECT COUNT(*) FROM cursos WHERE ativo = 1');
 $nCals   = $num('SELECT COUNT(*) FROM calendarios');
 $nBase   = $num("SELECT COUNT(*) FROM eventos WHERE calendario_id IS NULL AND ano = $anoFoco");
 // Feriado não é evento de um ano: é cadastro, e vale para todos.
-$nFer    = $num('SELECT COUNT(*) FROM feriados WHERE ativo = 1');
+$nFer    = $num('SELECT COUNT(*) FROM feriados');
 
 $cals = $db->query(
     'SELECT c.*, cu.nome AS curso_nome,

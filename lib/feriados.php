@@ -34,13 +34,12 @@ function domingoDePascoa(int $ano): DateTimeImmutable
     return (new DateTimeImmutable("$ano-03-21"))->modify('+' . easter_days($ano) . ' days');
 }
 
-/** Os feriados cadastrados e ativos, na ordem em que a tela mostra. */
+/** Os feriados cadastrados, na ordem em que a tela mostra. */
 function feriadosCadastrados(PDO $db): array
 {
     return $db->query(
         "SELECT f.*, c.nome AS categoria_nome, c.cor, c.cor_texto, c.prioridade, c.letivo
            FROM feriados f LEFT JOIN categorias c ON c.id = f.categoria_id
-          WHERE f.ativo = 1
           ORDER BY CASE f.tipo WHEN 'fixo' THEN f.mes ELSE 0 END, f.dia, f.deslocamento, f.nome"
     )->fetchAll();
 }

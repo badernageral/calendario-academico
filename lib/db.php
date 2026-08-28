@@ -119,6 +119,19 @@ function migrar(PDO $pdo): void
         }
     }
 
+    // Inativar um feriado saiu: era um estado a mais para uma coisa que se
+    // resolve excluindo — e um feriado inativo não aparecia na grade, então
+    // ficava difícil de reencontrar. Quem tinha algum inativo o recupera ativo,
+    // e agora pode simplesmente apagá-lo pelo X da grade.
+    $colunasFeriados = $pdo->query('PRAGMA table_info(feriados)')->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (in_array('ativo', $colunasFeriados, true)) {
+        try {
+            $pdo->exec('ALTER TABLE feriados DROP COLUMN ativo');
+        } catch (PDOException $e) {
+            // SQLite velho demais: a coluna fica, e nada mais a lê.
+        }
+    }
+
     // O nível de ensino tinha uma posição digitada para ordenar as listas. Eram
     // quatro níveis e um número a manter à mão em cada um: a ordem alfabética
     // diz a mesma coisa sem pedir nada. DROP COLUMN existe no SQLite desde a

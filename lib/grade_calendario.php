@@ -24,9 +24,10 @@
 
 $g_feriados = !empty($gradeFeriados);
 $g_global   = !empty($gradeGlobal) || $g_feriados;   // as duas telas são de um ano, sem curso
-$g_url      = $g_feriados ? 'feriados.php?ano=' . $ano . '&'
-            : ($g_global ? 'eventos.php?ano=' . $ano . '&' : $voltarPara . '&');
-$g_coisa    = $g_feriados ? 'feriado' : 'evento';
+// $voltarPara é a URL desta tela com o estado dela — ano, caixas, calendário.
+// As três telas que mostram a grade a definem, e é para ela que tudo volta.
+$g_url   = $voltarPara . '&';
+$g_coisa = $g_feriados ? 'feriado' : 'evento';
 
 // Quem está à vista. As duas telas de ano não passam nada, então lá isto é
 // sempre true, nada é escondido e as caixas nem aparecem no cabeçalho.
@@ -213,19 +214,21 @@ unset($g_lista, $g_ev, $g_ini);
             $g_base = $g_ev['calendario_id'] === null;
             $g_cat  = $g_ev['categoria_id'] !== null ? ($g_cats[(int) $g_ev['categoria_id']] ?? null) : null;
             $g_feriado = isset($g_ev['feriado_id']);
-            // Nem feriado nem marco de bimestre se editam como evento. O
-            // feriado vem do cadastro e vale para todos os anos; o marco sai das
-            // datas do próprio calendário e do modelo de texto em Configurações.
-            // Nas listas de evento os dois aparecem só para conferência — o
-            // feriado tem tela própria, e o marco se muda pelas datas.
+            // O marco de bimestre é o único que não se edita em lugar nenhum:
+            // ele sai das datas do próprio calendário e do modelo de texto em
+            // Configurações, e aqui aparece só para conferência.
+            //
+            // O feriado se edita das três telas, no formulário dele, que abre
+            // em modal sem sair de onde se está — sair custaria o ano em foco,
+            // os filtros e o lugar da rolagem.
             $g_auto     = !empty($g_ev['auto']);
-            $g_editavel = $g_feriado ? $g_feriados : !$g_auto;
-            $g_link  = $g_feriado
-                ? 'feriados.php?editar=' . (int) $g_ev['feriado_id']
-                : $g_url . 'editar_evento=' . (int) $g_ev['id'];
+            $g_editavel = !$g_auto;
+            $g_link  = $g_url . ($g_feriado
+                ? 'editar_feriado=' . (int) $g_ev['feriado_id']
+                : 'editar_evento=' . (int) $g_ev['id']);
             $g_negr  = (int) $g_ev['negrito'] === 1 ? ' negrito' : '';
             $g_dica  = ($g_cat['nome'] ?? 'sem categoria')
-                . ($g_feriado ? ' · feriado, vale para todos os anos; edita-se em Feriados' : '')
+                . ($g_feriado && !$g_feriados ? ' · feriado, vale para todos os anos; abre no cadastro de Feriados' : '')
                 . ($g_auto ? ' · escrito pelo sistema a partir das datas dos bimestres' : '')
                 . (!$g_feriado && !$g_auto && !$g_global && $g_base ? ' · evento global' : '');
             ?>
@@ -271,9 +274,8 @@ unset($g_lista, $g_ev, $g_ini);
               <?php if ($g_apagavel): ?>
               <form method="post" onsubmit="return confirm(<?= e(json_encode($g_aviso, JSON_UNESCAPED_UNICODE)) ?>)">
                 <?= csrfCampo() ?>
-                <input type="hidden" name="acao" value="<?= $g_feriado ? 'excluir' : 'excluir_evento' ?>">
+                <input type="hidden" name="acao" value="<?= $g_feriado ? 'excluir_feriado' : 'excluir_evento' ?>">
                 <input type="hidden" name="id" value="<?= (int) ($g_feriado ? $g_ev['feriado_id'] : $g_ev['id']) ?>">
-                <?php if ($g_feriado): ?><input type="hidden" name="ano" value="<?= (int) $ano ?>"><?php endif; ?>
                 <button class="apagar" title="Excluir"><i class="bi bi-x-lg"></i></button>
               </form>
               <?php endif; ?>
@@ -348,9 +350,10 @@ unset($g_lista, $g_ev, $g_ini);
   var DIAS = JSON.parse(document.getElementById('dados-dias').textContent);
   var URL = <?= json_encode($g_url) ?>;
   var SEMANA = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
-  // A tela de Feriados: só nela o feriado se edita, e só nela as etiquetas de
-  // origem sobram — ali tudo é feriado, e dizê-lo em cada linha não informa.
+  // A tela de Feriados: nela as etiquetas de origem sobram — ali tudo é
+  // feriado, e dizê-lo em cada linha não informa.
   var TELA_DE_FERIADOS = <?= $g_feriados ? 'true' : 'false' ?>;
+
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -378,8 +381,8 @@ unset($g_lista, $g_ev, $g_ini);
     } else {
       html += '<ul class="list-group list-group-flush">';
       dia.eventos.forEach(function (e) {
-        var url = e.feriado ? 'feriados.php?editar=' + e.feriado : URL + 'editar_evento=' + e.id;
-        var editavel = e.auto ? false : (!e.feriado || TELA_DE_FERIADOS);
+        var url = URL + (e.feriado ? 'editar_feriado=' + e.feriado : 'editar_evento=' + e.id);
+        var editavel = !e.auto;
         html += '<li class="list-group-item d-flex align-items-start gap-2 px-0">' +
           '<span class="amostra mt-1" style="background:' + esc(e.cor || 'transparent') + '"></span>' +
           '<span class="flex-grow-1"><span class="d-block">' + esc(e.desc) + '</span>' +

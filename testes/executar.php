@@ -246,12 +246,14 @@ confere('a Páscoa não anda com o fuso', (function (): array {
     return array_values(array_unique($out));
 })(), ['2026-04-05']);
 
-confere('feriado inativo sai de circulação',   (function () use ($db) {
-    $db->exec("UPDATE feriados SET ativo = 0 WHERE nome = 'Tiradentes'");
-    $nomes = array_column(feriadosDoAno($db, 2026), 'nome');
-    $db->exec("UPDATE feriados SET ativo = 1 WHERE nome = 'Tiradentes'");
-    return in_array('Tiradentes', $nomes, true);
-})(), false);
+// Inativar saiu do cadastro: um feriado que não deve valer se exclui, e a
+// coluna que o guardava não existe mais em banco nenhum.
+confere('não há mais feriado inativo',
+    in_array('ativo', $db->query('PRAGMA table_info(feriados)')->fetchAll(PDO::FETCH_COLUMN, 1), true),
+    false);
+confere('e todo feriado cadastrado entra no ano',
+    count(feriadosDoAno($db, 2026)),
+    (int) $db->query('SELECT COUNT(*) FROM feriados')->fetchColumn());
 
 grupo('Eventos globais e os níveis de ensino');
 $db   = bancoLimpo();

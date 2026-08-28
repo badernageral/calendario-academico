@@ -153,13 +153,15 @@ Para conferir o que está carregado — as três precisam aparecer:
    que este cadastro é: uma regra que vale para **todos os anos**. A portaria
    anual do MGI declara as emendas ano a ano (em 2026, 20/4 e 5/6), então uma
    emenda cadastrada como data fixa vai reaparecer em 2027, quando o feriado cai
-   noutro dia da semana e emenda nenhuma foi declarada — nesse ano, é desmarcar
-   *Ativo*.
-   Corrigir um feriado conserta todos os anos de uma vez, e desmarcar *Ativo*
-   tira o feriado de circulação sem apagar o cadastro. Os feriados aparecem na
-   grade e na lista de cada mês com a marca *feriado*, mas **não são eventos**:
-   fora desta tela eles são só leitura — não se editam, não se apagam e não têm
-   lápis. Quem mexe neles é esta tela, e aqui a grade continua clicável.
+   noutro dia da semana e emenda nenhuma foi declarada — nesse ano, é excluí-la.
+   Corrigir um feriado conserta todos os anos de uma vez.
+   A data fixa se escolhe num **calendário de um mês**, sem ano: o que se grava
+   é dia e mês, e fevereiro sempre mostra 29 dias, que é como se cadastra um
+   feriado que só existe em ano bissexto.
+   Os feriados aparecem na grade e na lista de cada mês com a marca *feriado*, e
+   **se alteram de qualquer uma das três telas** que mostram a grade do ano — o
+   formulário abre em modal ali mesmo, sem trocar de tela. Excluir, não: isso é
+   só aqui, porque um feriado sai dos calendários de todos os anos.
 3. **Eventos globais** — recessos, planejamento e prazos institucionais do ano,
    na mesma grade anual clicável da tela de um
    calendário (sem as linhas de dias letivos, que dependem dos semestres de um
@@ -196,9 +198,9 @@ Para conferir o que está carregado — as três precisam aparecer:
    mostra **a grade do ano inteiro com a mesma cara da impressão** — nome do mês
    em verde, dias pintados pela categoria e a contagem de dias letivos no rodapé
    de cada mês. **Clicar em um dia** abre o que cai nele: cada evento com sua
-   categoria e um atalho para editar — menos os feriados, que aparecem só para
-   conferência — e o botão *Novo evento neste dia*, que já volta com a data
-   preenchida. O cadastro e a alteração de evento acontecem **em um
+   categoria e um atalho para editar — inclusive os feriados, que abrem o
+   formulário do cadastro em modal, sem sair daqui — e o botão *Novo evento
+   neste dia*, que já volta com a data preenchida. O cadastro e a alteração de evento acontecem **em um
    modal**: ele abre sozinho quando a página vem de *Editar*, de um dia clicado
    na grade ou do botão *Novo evento*. O formulário é o mesmo das duas telas —
    dentro de um calendário, o campo **Abrangência** decide se o evento é
@@ -208,11 +210,12 @@ Para conferir o que está carregado — as três precisam aparecer:
    embaixo do número, para aparecerem mesmo quando a categoria não pinta.
    A legenda fica acima da grade e, **embaixo de cada mês, a lista dos seus
    eventos** — três meses lado a lado, como no papel. Cada linha da lista abre o
-   evento para edição e traz um × para excluir; os globais são marcados com
-   *global* e só têm o atalho de edição, já que apagá-los ali afetaria todos os
-   calendários do ano, e os *feriados* não têm nem um nem outro: são texto, e
-   quem mexe neles é a tela de Feriados. Todo evento entra nessa lista — a mesma
-   que sai impressa.
+   evento para edição e traz um × para excluir. Cada tela apaga o que é dela: o
+   × aparece no evento *local* aqui, no *global* na tela de Eventos globais e no
+   *feriado* no cadastro de Feriados — apagar um global daqui afetaria todos os
+   calendários do ano, e um feriado, todos os anos. Editar é de qualquer tela.
+   Só o marco de bimestre não tem nem um nem outro: ele sai das datas do próprio
+   calendário. Todo evento entra nessa lista — a mesma que sai impressa.
    **Passar o mouse numa linha acende, na grade, os dias daquele evento** — uma
    lâmina azul translúcida por cima da célula, com o número em branco e negrito.
    Um evento de 26 dias marca as 26 células de uma vez, que é o que torna
@@ -368,8 +371,10 @@ divergência.
     lib/                    db.php, Engine.php (cálculo), util.php, schema.sql,
                             layout.php (barra lateral), grade_calendario.php
                             (a grade anual, usada pelas duas telas),
-                            feriados.php (as regras de data dos feriados) e
-                            form_evento.php (o modal de evento),
+                            feriados.php (as regras de data dos feriados),
+                            form_evento.php e form_feriado.php (os modais, os
+                            mesmos nas telas que os abrem), eventos_crud.php e
+                            feriados_crud.php (o POST de cada um),
                             campos_bimestres.php (as oito datas, nas duas telas
                             que as pedem) e valida_bimestres.php (as mesmas
                             regras no navegador)
