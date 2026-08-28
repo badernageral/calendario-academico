@@ -26,6 +26,8 @@ final class Engine
     private array $categorias = [];
     private array $eventos    = [];
     private array $semestres  = [];
+    /** @var array<int, array{inicio:string,fim:string}> bimestres 1..4, na ordem do ano */
+    private array $bimestres  = [];
     private bool  $semestresImplicitos = false;
     /** @var array<string, array> mapa 'Y-m-d' => estado do dia */
     private array $dias = [];
@@ -54,6 +56,7 @@ final class Engine
         }
         $this->carregarEventos();
         $this->carregarPeriodos();
+        $this->juntarMarcosDePeriodo();
         $this->montarDias();
     }
 
@@ -80,18 +83,17 @@ final class Engine
             'ano'             => $ano,
             'curso_nome'      => $rotulo,
             'curso_nivel'     => null,
+            'curso_regime'    => null,
             'situacao'        => '',
             'local_texto'     => '',
             'observacoes'     => '',
-            'meta_letivos_s1' => 0,
-            'meta_letivos_s2' => 0,
         ];
     }
 
     public static function paraCalendario(PDO $db, int $id): ?self
     {
         $st = $db->prepare(
-            'SELECT c.*, cu.nome AS curso_nome, cu.nivel AS curso_nivel
+            'SELECT c.*, cu.nome AS curso_nome, cu.nivel AS curso_nivel, cu.regime AS curso_regime
              FROM calendarios c JOIN cursos cu ON cu.id = c.curso_id WHERE c.id = ?'
         );
         $st->execute([$id]);
@@ -203,6 +205,14 @@ final class Engine
             $this->semestres[(int) $p['numero']] = $p;
         }
 
+        $st = $this->db->prepare(
+            "SELECT * FROM periodos WHERE calendario_id = ? AND tipo = 'bimestre' ORDER BY numero"
+        );
+        $st->execute([$this->cal['id']]);
+        foreach ($st as $p) {
+            $this->bimestres[(int) $p['numero']] = ['inicio' => $p['inicio'], 'fim' => $p['fim']];
+        }
+
         // Sem semestres cadastrados o ano inteiro é letivo: só feriados, férias
         // e recessos tiram dias. O RESUMO então divide o ano ao meio.
         if (!$this->semestres) {
@@ -213,6 +223,76 @@ final class Engine
             ];
             $this->semestresImplicitos = true;
         }
+    }
+
+    /**
+     * Os quatro marcos de cada bimestre entram como eventos montados na hora, do
+     * mesmo jeito que os feriados: não existem em `eventos`, levam id null e a
+     * marca 'auto', e as telas não os editam nem os apagam — quem manda neles
+     * são as datas do próprio calendário.
+     *
+     * O primeiro bimestre de cada semestre abre o semestre, e o último o fecha;
+     * nesses dois dias o texto fala das duas coisas ("Início do 1º semestre e 1º
+     * bimestre letivo de 2026/1"). Os quatro modelos ficam em Configurações.
+     */
+    private function juntarMarcosDePeriodo(): void
+    {
+        if ($this->modo !== 'calendario' || !$this->bimestres) {
+            return;
+        }
+        $cat = null;
+        foreach ($this->categorias as $c) {
+            if ($c['nome'] === CAT_SEMESTRE) {
+                $cat = $c;
+                break;
+            }
+        }
+
+        $ano    = (int) $this->cal['ano'];
+        $regime = (string) ($this->cal['curso_regime'] ?: 'semestral');
+
+        foreach ($this->bimestres as $n => $p) {
+            $troca = [
+                '{ano}'      => (string) $ano,
+                '{semestre}' => (string) semestreDoBimestre($n),
+                '{bimestre}' => (string) rotuloBimestre($n, $regime),
+            ];
+            // 1 e 3 abrem um semestre; 2 e 4 fecham.
+            $abre  = $n === 1 || $n === 3;
+            $fecha = $n === 2 || $n === 4;
+
+            $this->marco($p['inicio'], strtr(cfg($abre  ? 'texto_inicio_semestre' : 'texto_inicio_bimestre'), $troca), $cat, $ano);
+            $this->marco($p['fim'],    strtr(cfg($fecha ? 'texto_fim_semestre'    : 'texto_fim_bimestre'),    $troca), $cat, $ano);
+        }
+    }
+
+    /** Um marco de bimestre como evento do calendário, sempre em negrito. */
+    private function marco(string $data, string $descricao, ?array $cat, int $ano): void
+    {
+        if ($descricao === '') {
+            return;   // modelo apagado em Configurações: o dia fica sem a nota
+        }
+        $this->eventos[] = [
+            'id'            => null,
+            'auto'          => true,
+            'ano'           => $ano,
+            'calendario_id' => $this->cal['id'],
+            'categoria_id'  => $cat === null ? null : (int) $cat['id'],
+            'descricao'     => $descricao,
+            'pinta_dias'    => 1,
+            'negrito'       => 1,
+            'conta_letivo'  => null,   // neutro: primeiro e último dia de aula contam pela regra do dia da semana
+            'rotulo'        => null,
+            'nivel'         => null,
+            'repoe_dow'     => null,
+            'datas'         => [['inicio' => $data, 'fim' => $data]],
+        ];
+    }
+
+    /** Os bimestres do calendário, na ordem do ano. */
+    public function bimestres(): array
+    {
+        return $this->bimestres;
     }
 
     /** true = os semestres não foram cadastrados e o ano inteiro está contando. */
@@ -287,6 +367,17 @@ final class Engine
             }
         }
         unset($dia);
+    }
+
+    /**
+     * Os dias que um evento ocupa, em Y-m-d, com as faixas já expandidas. A
+     * grade usa isto para acender as células do evento sob o cursor.
+     *
+     * @return string[]
+     */
+    public function diasDoEvento(array $ev): array
+    {
+        return $this->expandir($ev['datas']);
     }
 
     /** @param array<array{inicio:string,fim:string}> $faixas @return string[] */
@@ -404,10 +495,32 @@ final class Engine
     /** Mesma contagem, para um semestre inteiro. */
     public function contagemSemestre(int $numero): array
     {
+        $sem = $this->semestres[$numero] ?? null;
+        return $sem === null
+            ? ['por_dow' => array_fill(1, 6, 0), 'total' => 0]
+            : $this->contagemEntre($sem['inicio'], $sem['fim']);
+    }
+
+    /**
+     * E para um bimestre. Como os bimestres não se sobrepõem e cabem dentro dos
+     * semestres, a soma dos dois bimestres de um semestre bate com o total dele
+     * — é isso que os contadores do topo da tela mostram lado a lado.
+     */
+    public function contagemBimestre(int $numero): array
+    {
+        $bim = $this->bimestres[$numero] ?? null;
+        return $bim === null
+            ? ['por_dow' => array_fill(1, 6, 0), 'total' => 0]
+            : $this->contagemEntre($bim['inicio'], $bim['fim']);
+    }
+
+    /** Dias letivos de um intervalo fechado, por dia da semana (Seg..Sáb) + total. */
+    private function contagemEntre(string $de, string $ate): array
+    {
         $por = array_fill(1, 6, 0);
         $tot = 0;
         foreach ($this->dias as $iso => $dia) {
-            if (!$dia['letivo'] || $this->semestreDe($iso) !== $numero) {
+            if (!$dia['letivo'] || $iso < $de || $iso > $ate) {
                 continue;
             }
             $tot++;
@@ -508,12 +621,33 @@ final class Engine
         return $out;
     }
 
-    /** Modelo configurável, com {curso} e {ano} no lugar de placeholders de sprintf. */
+    /**
+     * Modelo configurável, com {curso}, {nivel} e {ano} no lugar de
+     * placeholders de sprintf.
+     *
+     * O nível sai em maiúsculas: o título é um cabeçalho de documento, todo em
+     * caixa alta, e o nome do curso já é gravado assim. "Técnico Integrado"
+     * dentro de "CALENDÁRIO DO CURSO … EM AGRICULTURA 2026" destoaria.
+     */
     public function titulo(): string
     {
-        return strtr(cfg('titulo_modelo'), [
-            '{curso}' => (string) $this->cal['curso_nome'],
-            '{ano}'   => (string) (int) $this->cal['ano'],
-        ]);
+        return strtr(cfg('titulo_modelo'), self::trocasDoTitulo(
+            (string) $this->cal['curso_nome'],
+            (string) ($this->cal['curso_nivel'] ?? ''),
+            (int) $this->cal['ano']
+        ));
+    }
+
+    /**
+     * As trocas do modelo do título. Fica aqui, e não solta na tela, para a
+     * amostra de Configurações mostrar exatamente o que sai no papel.
+     */
+    public static function trocasDoTitulo(string $curso, string $chaveNivel, int $ano): array
+    {
+        return [
+            '{curso}' => $curso,
+            '{nivel}' => maiusculas((string) (niveisCurso()[$chaveNivel] ?? '')),
+            '{ano}'   => (string) $ano,
+        ];
     }
 }

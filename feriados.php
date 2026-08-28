@@ -3,6 +3,13 @@ require __DIR__ . '/lib/boot.php';
 
 $db = db();
 
+// O tipo de um feriado é a origem da norma. Resolvido pelo nome, sempre os
+// quatro e sempre na ordem de alcance — antes era um LIKE 'Feriado%', e bastava
+// alguém renomear a categoria na tela de Legenda para o tipo sumir da lista.
+// Fica aqui em cima porque o POST confere o tipo contra esta lista antes de a
+// tela chegar a montar o formulário.
+$cats = categoriasDeFeriado($db);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = post('acao');
     $id   = postInt('id');
@@ -12,6 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tipo = post('tipo') === 'movel' ? 'movel' : 'fixo';
         $cat  = postInt('categoria_id') ?: null;
         $volta = 'feriados.php' . ($id ? '?editar=' . $id : '?novo=1');
+
+        // O tipo precisa ser um dos quatro: é dele que saem a prioridade, a cor
+        // e a origem impressa depois do nome. Cair num padrão em silêncio era
+        // justamente como um feriado nacional virava estadual sem ninguém ver.
+        if (!in_array($cat, array_map(static fn ($c) => (int) $c['id'], $cats), true)) {
+            flash('Escolha o tipo do feriado.', 'erro');
+            redirect($volta);
+        }
 
         if ($nome === '') {
             flash('Informe o nome do feriado.', 'erro');
@@ -61,13 +76,11 @@ if ($idEdit = getInt('editar')) {
     $edit = $st->fetch() ?: null;
 }
 
-// Só as categorias de feriado e ponto facultativo fazem sentido aqui.
-$cats = $db->query(
-    "SELECT * FROM categorias WHERE nome LIKE 'Feriado%' OR nome = 'Ponto Facultativo' ORDER BY prioridade DESC"
-)->fetchAll();
-
 // A grade mostra as datas do ano em foco, para conferir de bate-pronto.
-$ano = getInt('ano') ?: (int) ($db->query('SELECT MAX(ano) FROM eventos')->fetchColumn() ?: date('Y'));
+$ano = anoDaTela(
+    getInt('ano') ?: (int) ($db->query('SELECT MAX(ano) FROM eventos')->fetchColumn() ?: date('Y')),
+    (int) date('Y')
+);
 
 // Os inativos não entram na grade — não valem para ano nenhum —, então ficam
 // listados à parte: sem isso, desativar um feriado o tornaria inalcançável.
@@ -139,14 +152,19 @@ head('Feriados', 'feriados');
               <div class="form-text">Sai assim na lista do mês e no calendário impresso.</div>
             </div>
             <div class="col-md-4">
-              <label class="form-label">Categoria (cor)</label>
+              <label class="form-label">Tipo</label>
               <select name="categoria_id" class="form-select">
-                <?php foreach ($cats as $c): ?>
-                  <option value="<?= $c['id'] ?>" <?= (int) ($edit['categoria_id'] ?? 0) === (int) $c['id'] ? 'selected' : '' ?>>
-                    <?= e($c['nome']) ?>
+                <?php foreach ($cats as $g_nome => $g_c): ?>
+                  <option value="<?= (int) $g_c['id'] ?>"
+                          <?= (int) ($edit['categoria_id'] ?? 0) === (int) $g_c['id'] ? 'selected' : '' ?>>
+                    <?= e($g_nome) ?>
                   </option>
                 <?php endforeach; ?>
               </select>
+              <div class="form-text">
+                A origem da norma — sai no papel depois do nome. A
+                <a href="configuracoes.php">cor de cada tipo</a> fica em Configurações.
+              </div>
             </div>
 
             <div class="col-12">

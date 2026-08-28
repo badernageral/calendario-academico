@@ -53,6 +53,11 @@ $novaData = ($novaData !== '' && $eng->dia($novaData) !== null) ? $novaData : ''
 // eventos sem faixa de datas.
 $evLocais = $evGlobais = 0;
 foreach ($eng->eventos() as $evConta) {
+    // Os marcos de bimestre não são cadastro de ninguém: o motor os escreve das
+    // datas do calendário, então não entram na conta de eventos.
+    if (!empty($evConta['auto'])) {
+        continue;
+    }
     $evConta['calendario_id'] === null ? $evGlobais++ : $evLocais++;
 }
 $total = $evLocais + $evGlobais;
@@ -61,18 +66,31 @@ head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
 
 $c1 = $eng->contagemSemestre(1);
 $c2 = $eng->contagemSemestre(2);
-$m1 = (int) $cal['meta_letivos_s1'];
-$m2 = (int) $cal['meta_letivos_s2'];
 
-/** "faltam 3" quando está abaixo da meta, "3 a mais" quando passou dela. */
-$diferenca = static function (int $total, int $meta): string {
-    $d = $meta - $total;
-    return $d === 0 ? '' : ($d > 0 ? " · faltam $d" : ' · ' . abs($d) . ' a mais');
-};
+// Os contadores do topo, numa faixa só: cada semestre seguido dos seus dois
+// bimestres, e o de eventos no fim. Não há meta a bater — o número é o que o
+// motor contou, já com os sábados letivos e o que mais o calendário tenha.
+// Quem sabe quantos dias o período precisa ter é quem monta, e é olhando estes
+// números que ele acrescenta ou tira um sábado.
+//
+// O rótulo do bimestre vai curto ("2º bimestre") mesmo no curso semestral, em
+// que o número se repete: a posição na faixa já diz de que semestre ele é, e um
+// traço mais forte separa um grupo do outro.
+$regime  = (string) ($cal['curso_regime'] ?: 'semestral');
+$curto   = static fn (int $n): string => rotuloBimestre($n, $regime) . 'º bimestre';
+$contadores = [
+    ['1º semestre', $c1['total'],                       'semestre'],
+    [$curto(1),     $eng->contagemBimestre(1)['total'], ''],
+    [$curto(2),     $eng->contagemBimestre(2)['total'], ''],
+    ['2º semestre', $c2['total'],                       'semestre grupo'],
+    [$curto(3),     $eng->contagemBimestre(3)['total'], ''],
+    [$curto(4),     $eng->contagemBimestre(4)['total'], ''],
+    ['eventos',     $total,                             'grupo'],
+];
 ?>
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a class="btn btn-sm btn-outline-secondary" href="calendarios.php"><i class="bi bi-arrow-left me-1"></i>Calendários</a>
-  <a class="btn btn-sm btn-outline-primary" href="editar_calendario.php?id=<?= $id ?>"><i class="bi bi-sliders me-1"></i>Dados e semestres</a>
+  <a class="btn btn-sm btn-outline-primary" href="editar_calendario.php?id=<?= $id ?>"><i class="bi bi-sliders me-1"></i>Dados e bimestres</a>
   <a class="btn btn-sm btn-outline-dark" href="gerar.php?id=<?= $id ?>" target="_blank"><i class="bi bi-printer me-1"></i>Gerar calendário</a>
   <?php if ($ev): ?>
     <a class="btn btn-sm btn-primary" href="<?= e($voltarPara) ?>&novo=1"><i class="bi bi-plus-lg me-1"></i>Novo evento</a>
@@ -87,42 +105,23 @@ $diferenca = static function (int $total, int $meta): string {
     <div>
       Os semestres ainda não foram informados, então <strong>o ano inteiro está contando como letivo</strong> —
       só feriados, férias e recessos tiram dias. O resumo abaixo divide o ano ao meio (jan–jun e jul–dez).
-      Informe as datas em <a href="editar_calendario.php?id=<?= $id ?>">Dados e semestres</a> para delimitar o período letivo.
+      Informe as datas em <a href="editar_calendario.php?id=<?= $id ?>">Dados e bimestres</a> para delimitar o período letivo.
     </div>
   </div>
 <?php endif; ?>
 
-<div class="row g-3 mb-4">
-  <?php
-  $resumo = [
-    ['1º semestre', $c1['total'], 'meta ' . $m1 . $diferenca($c1['total'], $m1), $c1['total'] === $m1, 'bi-1-circle-fill'],
-    ['2º semestre', $c2['total'], 'meta ' . $m2 . $diferenca($c2['total'], $m2), $c2['total'] === $m2, 'bi-2-circle-fill'],
-  ];
-  foreach ($resumo as [$rot, $val, $meta, $bate, $ico]): ?>
-  <div class="col-md-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="stat-icon <?= $bate ? 'bg-success' : 'bg-warning' ?> text-white fs-4"><i class="bi <?= $ico ?>"></i></div>
-        <div>
-          <div class="fw-bold fs-4"><?= $val ?> <span class="fs-6 fw-normal text-muted"><?= $val === 1 ? 'dia' : 'dias' ?></span></div>
-          <div class="text-muted small"><?= e($rot) ?> · <?= e($meta) ?></div>
-        </div>
-      </div>
+<div class="card border-0 shadow-sm mb-4">
+  <div class="faixa-contadores">
+    <?php foreach ($contadores as [$g_rot, $g_val, $g_classe]): ?>
+    <div class="contador <?= $g_classe ?>"<?= $g_rot === 'eventos'
+        ? ' title="' . $evGlobais . ' globais · ' . $evLocais . ' locais"' : '' ?>>
+      <span class="numero"><?= $g_val ?></span>
+      <span class="rotulo"><?= e($g_rot) ?></span>
     </div>
-  </div>
-  <?php endforeach; ?>
-  <div class="col-md-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body d-flex align-items-center gap-3">
-        <div class="stat-icon bg-secondary text-white fs-4"><i class="bi bi-list-ul"></i></div>
-        <div>
-          <div class="fw-bold fs-4"><?= $total ?> <span class="fs-6 fw-normal text-muted"><?= $total === 1 ? 'evento' : 'eventos' ?></span></div>
-          <div class="text-muted small"><?= $evGlobais ?> globais · <?= $evLocais ?> locais</div>
-        </div>
-      </div>
-    </div>
+    <?php endforeach; ?>
   </div>
 </div>
+<?php unset($g_rot, $g_val, $g_classe); ?>
 
 <?php $baseComum = false; $dataPadrao = $novaData; require __DIR__ . '/lib/form_evento.php'; ?>
 
@@ -134,35 +133,46 @@ require __DIR__ . '/lib/grade_calendario.php';
 
 <div class="card border-0 shadow-sm mb-4">
   <div class="card-header bg-transparent fw-semibold">
-    <i class="bi bi-calculator me-2 text-primary"></i>Resumo dos semestres
+    <i class="bi bi-calculator me-2 text-primary"></i>Resumo dos semestres e bimestres
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0 text-center">
         <thead class="table-light">
           <tr>
-            <th class="text-start">Semestre</th>
+            <th class="text-start">Período</th>
             <?php foreach (['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as $dia): ?>
               <th><?= $dia ?></th>
             <?php endforeach; ?>
             <th>Dias letivos</th>
-            <th>Meta</th>
           </tr>
         </thead>
         <tbody>
-          <?php foreach ([[1, $c1, $m1], [2, $c2, $m2]] as [$n, $c, $meta]): ?>
+          <?php
+          // Cada semestre e, logo abaixo, os seus dois bimestres. O bimestre
+          // entra recuado e em cinza: é o detalhe da linha de cima, e a soma
+          // dos dois fecha com ela. Num calendário anterior aos bimestres a
+          // lista deles vem vazia, e a tabela fica só com os semestres.
+          $temBimestres = $eng->bimestres() !== [];
+          foreach ([[1, $c1, [1, 2]], [2, $c2, [3, 4]]] as [$n, $c, $doSemestre]):
+          ?>
           <tr>
             <td class="text-start fw-semibold"><?= $n ?>º semestre</td>
             <?php for ($dw = 1; $dw <= 6; $dw++): ?>
               <td><?= $c['por_dow'][$dw] ?></td>
             <?php endfor; ?>
-            <td>
-              <span class="badge <?= $c['total'] === $meta ? 'bg-success-subtle text-success-emphasis' : 'bg-warning-subtle text-warning-emphasis' ?>">
-                <?= $c['total'] ?><?= $diferenca($c['total'], $meta) ?>
-              </span>
-            </td>
-            <td class="text-muted"><?= $meta ?></td>
+            <td><span class="badge bg-light text-secondary border"><?= $c['total'] ?></span></td>
           </tr>
+            <?php if ($temBimestres): foreach ($doSemestre as $b): ?>
+            <?php $cb = $eng->contagemBimestre($b); ?>
+            <tr class="linha-bimestre">
+              <td class="text-start text-muted ps-4"><?= rotuloBimestre($b, $regime) ?>º bimestre</td>
+              <?php for ($dw = 1; $dw <= 6; $dw++): ?>
+                <td class="text-muted"><?= $cb['por_dow'][$dw] ?></td>
+              <?php endfor; ?>
+              <td class="text-muted"><?= $cb['total'] ?></td>
+            </tr>
+            <?php endforeach; endif; ?>
           <?php endforeach; ?>
           <tr class="fw-semibold table-light">
             <td class="text-start">Ano</td>
@@ -170,7 +180,6 @@ require __DIR__ . '/lib/grade_calendario.php';
               <td><?= $c1['por_dow'][$dw] + $c2['por_dow'][$dw] ?></td>
             <?php endfor; ?>
             <td><?= $c1['total'] + $c2['total'] ?></td>
-            <td class="text-muted"><?= $m1 + $m2 ?></td>
           </tr>
         </tbody>
       </table>

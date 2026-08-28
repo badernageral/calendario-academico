@@ -10,17 +10,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'salvar') {
         $letivo = post('letivo');            // '', '0' ou '1'
 
-        // Prioridade das protegidas não vem do formulário: feriado sempre no
-        // topo, fim de semana sempre no piso. O resto fica abaixo dos feriados.
         $atual = null;
         if ($id) {
             $st = $db->prepare('SELECT * FROM categorias WHERE id = ?');
             $st->execute([$id]);
             $atual = $st->fetch() ?: null;
         }
-        $prioridade = $atual && (int) $atual['protegida'] === 1
-            ? (int) $atual['prioridade']
-            : max(1, min(PRIORIDADE_MAX, postInt('prioridade', 50)));
+
+        // A protegida não se edita por aqui, nem por um POST à mão. O nome dela
+        // é a identidade com que o cadastro de feriados acha o tipo e com que
+        // migrar() reconhece as quatro; a prioridade é fixa; e a cor mora em
+        // Configurações. Sem esta guarda, renomear “Feriado Nacional” sumia com
+        // o tipo da tela de Feriados e reatribuía os feriados dele em silêncio
+        // na primeira gravação — o calendário impresso passava a mentir a
+        // origem da norma.
+        if ($atual && (int) $atual['protegida'] === 1) {
+            flash('“' . $atual['nome'] . '” é do sistema: a cor dela se troca em Configurações,'
+                . ' e o nome e a prioridade são fixos.', 'erro');
+            redirect('categorias.php');
+        }
+
+        $prioridade = max(1, min(PRIORIDADE_MAX, postInt('prioridade', 50)));
 
         // A cor sai daqui para dentro de um `style` na grade e na impressão:
         // o que não for #rrggbb não entra no banco.
@@ -33,14 +43,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             isset($_POST['na_legenda']) ? 1 : 0,
             postInt('ordem', 0),
         ];
-        if ($id) {
-            $db->prepare('UPDATE categorias SET nome=?, cor=?, cor_texto=?, letivo=?, prioridade=?, na_legenda=?, ordem=? WHERE id=?')
-               ->execute([...$dados, $id]);
-            flash('Categoria atualizada.');
-        } else {
-            $db->prepare('INSERT INTO categorias (nome, cor, cor_texto, letivo, prioridade, na_legenda, ordem) VALUES (?,?,?,?,?,?,?)')
-               ->execute($dados);
-            flash('Categoria criada.');
+        // `nome` é UNIQUE no banco. Sem este try, repetir um nome já cadastrado
+        // sobe uma PDOException até o topo — e com display_errors desligado, que
+        // é como o Apache serve em produção, isso é tela branca com o que foi
+        // digitado perdido. A tela de calendários já avisa assim da sua colisão.
+        try {
+            if ($id) {
+                $db->prepare('UPDATE categorias SET nome=?, cor=?, cor_texto=?, letivo=?, prioridade=?, na_legenda=?, ordem=? WHERE id=?')
+                   ->execute([...$dados, $id]);
+                flash('Categoria atualizada.');
+            } else {
+                $db->prepare('INSERT INTO categorias (nome, cor, cor_texto, letivo, prioridade, na_legenda, ordem) VALUES (?,?,?,?,?,?,?)')
+                   ->execute($dados);
+                flash('Categoria criada.');
+            }
+        } catch (PDOException $ex) {
+            flash('Já existe uma categoria chamada “' . post('nome') . '”.', 'erro');
+            redirect('categorias.php?' . ($id ? 'editar=' . $id : 'novo=1'));
         }
         redirect('categorias.php');
     }
@@ -63,11 +82,20 @@ if ($idEdit = getInt('editar')) {
     $st = $db->prepare('SELECT * FROM categorias WHERE id = ?');
     $st->execute([$idEdit]);
     $edit = $st->fetch() ?: null;
+    // Nas do sistema o único ajuste é a cor, e ele fica em Configurações.
+    if ($edit && (int) $edit['protegida'] === 1) {
+        redirect('configuracoes.php');
+    }
 }
+// Esta tela é das categorias que se cadastram. As quatro de feriado ficam de
+// fora: não se criam, não se excluem, não se renomeiam e não se escolhem num
+// evento — a única coisa ajustável nelas é a cor, e ela mora em Configurações.
+// Continuam saindo na legenda impressa, que é montada do banco, não daqui.
+//
 // A tabela sai por prioridade, do maior para o menor: é a ordem em que uma
 // categoria vence a outra na cor do dia. O campo "Ordem na legenda" continua
 // mandando na legenda impressa, que é outra coisa.
-$cats = $db->query('SELECT * FROM categorias ORDER BY prioridade DESC, nome')->fetchAll();
+$cats = $db->query('SELECT * FROM categorias WHERE protegida = 0 ORDER BY prioridade DESC, nome')->fetchAll();
 
 // O modal já vem aberto quando a página é de edição ou veio do botão "nova".
 $abrirModal = $edit !== null || get('novo') !== '';
@@ -96,14 +124,7 @@ head('Legenda', 'categorias');
         <?php foreach ($cats as $c): ?>
           <tr>
             <td><span class="amostra" style="background:<?= e($c['cor']) ?>"></span></td>
-            <td class="fw-semibold"><?= e($c['nome']) ?>
-              <?php if ((int) $c['protegida'] === 1): ?>
-                <span class="badge bg-light text-secondary border ms-1"
-                      title="<?= (int) $c['oculta'] === 1
-                          ? 'O sistema aplica sozinho e não oferece para escolher num evento; prioridade fixa e sem exclusão'
-                          : 'O sistema depende dela: prioridade fixa e sem exclusão' ?>">Sistema</span>
-              <?php endif; ?>
-            </td>
+            <td class="fw-semibold"><?= e($c['nome']) ?></td>
             <td>
               <?php if ($c['letivo'] === null): ?>
                 <span class="badge bg-secondary-subtle text-secondary-emphasis">neutro</span>
@@ -113,21 +134,16 @@ head('Legenda', 'categorias');
                 <span class="badge bg-danger-subtle text-danger-emphasis">não</span>
               <?php endif; ?>
             </td>
-            <td class="text-center">
-              <?= (int) $c['prioridade'] ?>
-              <?= (int) $c['protegida'] === 1 ? ' <i class="bi bi-lock-fill text-muted small" title="Prioridade fixa"></i>' : '' ?>
-            </td>
+            <td class="text-center"><?= (int) $c['prioridade'] ?></td>
             <td class="text-center"><?= (int) $c['na_legenda'] === 1 ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="text-muted">—</span>' ?></td>
             <td class="text-end text-nowrap">
               <a class="btn btn-sm btn-outline-primary" href="categorias.php?editar=<?= $c['id'] ?>"><i class="bi bi-pencil me-1"></i>Editar</a>
-              <?php if ((int) $c['protegida'] === 0): ?>
               <form method="post" class="d-inline" onsubmit="return confirm('Excluir esta categoria?')">
                 <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir">
                 <input type="hidden" name="id" value="<?= $c['id'] ?>">
                 <button class="btn btn-sm btn-outline-danger" title="Excluir"><i class="bi bi-trash"></i></button>
               </form>
-              <?php endif; ?>
             </td>
           </tr>
         <?php endforeach; ?>
@@ -174,14 +190,11 @@ head('Legenda', 'categorias');
                 <option value="0" <?= $lv === '0' ? 'selected' : '' ?>>Não — nunca conta como letivo</option>
               </select>
             </div>
-            <?php $g_fixa = $edit && (int) $edit['protegida'] === 1; ?>
             <div class="col-md-2">
               <label class="form-label">Prioridade</label>
               <input type="number" name="prioridade" class="form-control" min="1" max="<?= PRIORIDADE_MAX ?>"
-                     value="<?= (int) ($edit['prioridade'] ?? 50) ?>" <?= $g_fixa ? 'disabled' : '' ?>>
-              <?php if ($g_fixa): ?>
-                <div class="form-text">Fixa: esta categoria não disputa a cor do dia.</div>
-              <?php endif; ?>
+                     value="<?= (int) ($edit['prioridade'] ?? 50) ?>">
+              <div class="form-text">1 a <?= PRIORIDADE_MAX ?>; maior vence a cor do dia.</div>
             </div>
             <div class="col-md-3">
               <label class="form-label">Ordem na legenda</label>

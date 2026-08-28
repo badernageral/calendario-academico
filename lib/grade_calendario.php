@@ -44,11 +44,15 @@ $g_visivel = static function (array $ev) use ($g_verFeriados, $g_verGlobais): bo
 
 $g_cats = $eng->categorias();
 
-// A legenda embaixo da grade segue a mesma ordem da impressa. Na tela de
-// feriados só entram as cores que podem aparecer ali.
-$g_legenda = array_filter($g_cats, static fn ($c) => (int) $c['na_legenda'] === 1
-    && (!$g_feriados || str_starts_with($c['nome'], 'Feriado') || $c['nome'] === 'Ponto Facultativo'));
-uasort($g_legenda, static fn ($a, $b) => [(int) $a['ordem'], $a['nome']] <=> [(int) $b['ordem'], $b['nome']]);
+// A legenda acima da grade é a mesma da impressa. Na tela de feriados, não: ali
+// só entram as cores que podem aparecer, e o dia letivo comum não é uma delas.
+if ($g_feriados) {
+    $g_legenda = array_filter($g_cats, static fn ($c) => (int) $c['na_legenda'] === 1
+        && (str_starts_with($c['nome'], 'Feriado') || $c['nome'] === 'Ponto Facultativo'));
+    uasort($g_legenda, static fn ($a, $b) => [(int) $a['ordem'], $a['nome']] <=> [(int) $b['ordem'], $b['nome']]);
+} else {
+    $g_legenda = legendaDoCalendario($g_cats);
+}
 
 /**
  * Tudo o que o modal precisa saber, por dia. Vai para o JS como JSON. Junto sai
@@ -80,6 +84,7 @@ foreach (array_keys(Engine::MESES) as $g_mes) {
                     'cor'     => $g_cat['cor'] ?? null,
                     'base'    => $g_ev['calendario_id'] === null,
                     'feriado' => $g_ev['feriado_id'] ?? null,   // id do cadastro, quando é feriado
+                    'auto'    => !empty($g_ev['auto']),         // marco de bimestre, escrito pelo motor
                 ];
             }
             $g_pinta[$g_iso] = $eng->categoriaEntre($g_chaves);
@@ -207,25 +212,48 @@ unset($g_lista, $g_ev, $g_ini);
             $g_ev   = $g_item['ev'];
             $g_base = $g_ev['calendario_id'] === null;
             $g_cat  = $g_ev['categoria_id'] !== null ? ($g_cats[(int) $g_ev['categoria_id']] ?? null) : null;
-            // Feriado vem do cadastro e vale para todo ano: a edição dele é lá.
             $g_feriado = isset($g_ev['feriado_id']);
-            $g_link = $g_feriado
+            // Nem feriado nem marco de bimestre se editam como evento. O
+            // feriado vem do cadastro e vale para todos os anos; o marco sai das
+            // datas do próprio calendário e do modelo de texto em Configurações.
+            // Nas listas de evento os dois aparecem só para conferência — o
+            // feriado tem tela própria, e o marco se muda pelas datas.
+            $g_auto     = !empty($g_ev['auto']);
+            $g_editavel = $g_feriado ? $g_feriados : !$g_auto;
+            $g_link  = $g_feriado
                 ? 'feriados.php?editar=' . (int) $g_ev['feriado_id']
                 : $g_url . 'editar_evento=' . (int) $g_ev['id'];
+            $g_negr  = (int) $g_ev['negrito'] === 1 ? ' negrito' : '';
+            $g_dica  = ($g_cat['nome'] ?? 'sem categoria')
+                . ($g_feriado ? ' · feriado, vale para todos os anos; edita-se em Feriados' : '')
+                . ($g_auto ? ' · escrito pelo sistema a partir das datas dos bimestres' : '')
+                . (!$g_feriado && !$g_auto && !$g_global && $g_base ? ' · evento global' : '');
             ?>
-            <li>
+            <li data-dias="<?= e(implode(',', $eng->diasDoEvento($g_ev))) ?>">
               <span class="chip" style="background:<?= e($g_cat['cor'] ?? 'transparent') ?>"
                     title="<?= e($g_cat['nome'] ?? 'sem categoria') ?>"></span>
-              <a href="<?= e($g_link) ?>" class="<?= (int) $g_ev['negrito'] === 1 ? 'negrito' : '' ?>"
-                 title="<?= e(($g_cat['nome'] ?? 'sem categoria') . ($g_feriado ? ' · feriado, vale para todos os anos' : (!$g_global && $g_base ? ' · evento global' : ''))) ?>">
+              <?php if ($g_editavel): ?>
+              <a href="<?= e($g_link) ?>" class="<?= trim($g_negr) ?>" title="<?= e($g_dica) ?>">
+              <?php else: ?>
+              <span class="so-leitura<?= $g_negr ?>" title="<?= e($g_dica) ?>">
+              <?php endif; ?>
                 <?= e($eng->rotulo($g_ev)) ?> - <?= e($eng->descricaoNaLista($g_ev)) ?>
-                <?= $g_feriado && !$g_feriados ? '<span class="marca">feriado</span>' : '' ?>
-                <?= (!$g_global && $g_base && !$g_feriado) ? '<span class="marca">global</span>' : '' ?>
+                <?php
+                // De onde o item vem, na tela de um calendário: feriado (do
+                // cadastro), global (de todos os calendários do ano) ou local
+                // (só deste). Nas telas de ano a etiqueta não faria sentido —
+                // ali é tudo do mesmo tipo, e ela viraria ruído em toda linha.
+                ?>
+                <?= $g_feriado && !$g_feriados ? '<span class="marca feriado">feriado</span>' : '' ?>
+                <?= $g_auto ? '<span class="marca">automático</span>' : '' ?>
+                <?= (!$g_global && !$g_feriado && !$g_auto)
+                    ? '<span class="marca ' . ($g_base ? 'global">global' : 'local">local') . '</span>'
+                    : '' ?>
                 <?php if ($g_global && !$g_feriado && niveisRotulo($g_ev['nivel']) !== ''): ?>
                   <span class="marca"><?= e(niveisRotulo($g_ev['nivel'])) ?></span>
                 <?php endif; ?>
-              </a>
-              <?php if (!$g_feriado && ($g_global || !$g_base)): ?>
+              <?= $g_editavel ? '</a>' : '</span>' ?>
+              <?php if (!$g_feriado && !$g_auto && ($g_global || !$g_base)): ?>
               <form method="post" onsubmit="return confirm('Excluir este evento?')">
                 <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir_evento">
@@ -262,10 +290,53 @@ unset($g_lista, $g_ev, $g_ini);
 
 <script type="application/json" id="dados-dias"><?= json_encode($g_dias, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
 <script>
+/**
+ * Passar o mouse numa linha da lista acende, na grade, os dias daquele evento.
+ * Um evento de vinte dias vira vinte células marcadas de uma vez, que é o que
+ * torna visível o que a lista só diz por escrito ("30/9 a 24/10").
+ *
+ * O realce é uma lâmina translúcida (um ::before por cima da célula), não uma
+ * borda: borda entraria na caixa e empurraria a grade a cada hover, e contorno
+ * sairia igual ao outline que a própria célula já ganha no hover dela.
+ */
+(function () {
+  var grade = document.querySelector('.grade-anual');
+  if (!grade) { return; }
+
+  // O mapa nasce uma vez: são ~365 células, e procurá-las a cada hover seria
+  // varrer a grade toda várias vezes por segundo enquanto o mouse desce a lista.
+  var celulas = {};
+  grade.querySelectorAll('.dia[data-dia]').forEach(function (td) {
+    celulas[td.dataset.dia] = td;
+  });
+
+  document.querySelectorAll('.eventos-mes li[data-dias]').forEach(function (li) {
+    var dias = li.dataset.dias.split(',').filter(Boolean);
+    if (!dias.length) { return; }
+
+    function acender(ligado) {
+      dias.forEach(function (d) {
+        if (celulas[d]) { celulas[d].classList.toggle('realce', ligado); }
+      });
+    }
+    li.addEventListener('mouseenter', function () { acender(true); });
+    li.addEventListener('mouseleave', function () { acender(false); });
+    // Quem navega pelo teclado chega ao link da linha pelo Tab: o realce
+    // acompanha o foco também.
+    li.addEventListener('focusin',  function () { acender(true); });
+    li.addEventListener('focusout', function () { acender(false); });
+  });
+})();
+
 (function () {
   var DIAS = JSON.parse(document.getElementById('dados-dias').textContent);
   var URL = <?= json_encode($g_url) ?>;
   var SEMANA = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  // Só a tela de Feriados edita feriado; nas outras ele é leitura.
+  var FERIADO_EDITAVEL = <?= $g_feriados ? 'true' : 'false' ?>;
+  // Telas de ano (Eventos globais e Feriados): lá tudo é do mesmo tipo, e
+  // etiquetar cada linha com "global" não diria nada.
+  var TELA_DE_ANO = <?= $g_global ? 'true' : 'false' ?>;
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -293,17 +364,21 @@ unset($g_lista, $g_ev, $g_ini);
     } else {
       html += '<ul class="list-group list-group-flush">';
       dia.eventos.forEach(function (e) {
-        // Feriado não se edita como evento: o lápis leva ao cadastro dele.
         var url = e.feriado ? 'feriados.php?editar=' + e.feriado : URL + 'editar_evento=' + e.id;
+        var editavel = e.auto ? false : (!e.feriado || FERIADO_EDITAVEL);
         html += '<li class="list-group-item d-flex align-items-start gap-2 px-0">' +
           '<span class="amostra mt-1" style="background:' + esc(e.cor || 'transparent') + '"></span>' +
           '<span class="flex-grow-1"><span class="d-block">' + esc(e.desc) + '</span>' +
           '<small class="text-muted">' + esc(e.cat || 'sem categoria') +
-          (e.feriado && !<?= $g_feriados ? 'true' : 'false' ?> ? ' · <span class="badge bg-light text-secondary border">feriado</span>' : '') +
-          (e.base && !e.feriado && !<?= $g_global ? 'true' : 'false' ?> ? ' · <span class="badge bg-light text-secondary border">global</span>' : '') +
+          (e.feriado && !FERIADO_EDITAVEL ? ' <span class="marca feriado">feriado</span>' : '') +
+          (e.auto ? ' <span class="marca">automático</span>' : '') +
+          (!e.feriado && !e.auto && !TELA_DE_ANO
+            ? (e.base ? ' <span class="marca global">global</span>' : ' <span class="marca local">local</span>')
+            : '') +
           '</small></span>' +
-          '<a class="btn btn-sm btn-outline-primary" href="' + url + '" title="' +
-          (e.feriado ? 'Abrir no cadastro de feriados' : 'Editar') + '"><i class="bi bi-pencil"></i></a>' +
+          (editavel
+            ? '<a class="btn btn-sm btn-outline-primary" href="' + url + '" title="Editar"><i class="bi bi-pencil"></i></a>'
+            : '') +
           '</li>';
       });
       html += '</ul>';

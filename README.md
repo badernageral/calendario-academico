@@ -25,14 +25,45 @@ de eventos.
 
 ### Permissões
 
-O Apache (`www-data`) precisa escrever em `data/` e em `backups/`:
+O Apache (`www-data`) precisa escrever em `data/` e em `backups/` — nas pastas,
+não só nos arquivos: o SQLite em modo WAL cria um `-wal` e um `-shm` ao lado do
+banco, e a tela de Backup grava cópias novas.
 
-    setfacl -m u:www-data:rwx data
-    setfacl -m u:www-data:rw  data/calendario.sqlite
-    setfacl -m u:www-data:rwx -m d:u:www-data:rw backups
+    sudo setfacl -m u:www-data:rwx -m d:u:www-data:rw data
+    sudo setfacl -m u:www-data:rwx -m d:u:www-data:rw backups
+
+O `-d` é o que faz um arquivo criado depois já nascer gravável — inclusive o
+próprio `data/calendario.sqlite`, que **não existe numa instalação nova**: ele
+nasce no primeiro acesso. Só se você trouxe um banco pronto de outra máquina é
+que vale ajustar o arquivo direto:
+
+    sudo setfacl -m u:www-data:rw data/calendario.sqlite
+
+**Não abra o banco com outro usuário.** O SQLite roda em modo WAL, e abrir
+`data/calendario.sqlite` — mesmo só para ler, mesmo com um `php -r` ou um
+`sqlite3` — cria um `-wal` e um `-shm` ao lado dele, sob *quem abriu*. Se não
+foi o `www-data`, ele passa a não conseguir escrever nesses dois arquivos, e o
+site inteiro vira somente-leitura: as telas abrem normalmente, mas qualquer
+gravação morre com `attempt to write a readonly database` e a página fica
+indisponível. O sintoma engana, porque ler continua funcionando.
+
+Para conferir, e para consertar quando acontecer:
+
+    ls -l data/calendario.sqlite*        # os três têm de ser do www-data
+    sudo rm -f data/calendario.sqlite-wal data/calendario.sqlite-shm
+
+Apagar os dois é seguro **com o site parado ou ocioso**: o `-shm` é só índice em
+memória compartilhada, e o `-wal` costuma estar vazio — confira o tamanho antes.
+O `www-data` recria os dois, como ele mesmo, na requisição seguinte. Se precisar
+mesmo olhar o banco pela linha de comando, faça como ele:
+
+    sudo -u www-data sqlite3 data/calendario.sqlite
 
 As duas pastas ficam dentro da raiz do site, então cada uma tem um `.htaccess`
-com `Require all denied` — sem ele, o banco seria baixável pela URL.
+com `Require all denied` — sem ele, o banco seria baixável pela URL. Pelo mesmo
+motivo há um em `lib/`, em `ferramentas/` e em `testes/`: são a mesma lista que
+o `desktop/router.php` nega no modo desktop, e sem eles o Apache entregaria o
+`schema.sql`, o importador da planilha e a suíte.
 
 **O `.htaccess` só vale se o Apache aceitar.** A configuração precisa ter
 `AllowOverride All` no diretório que contém o site; com `AllowOverride None` —
@@ -72,15 +103,36 @@ Bastam `pdo_sqlite` e `calendar` (para os feriados móveis). `mbstring` é
 opcional — sem ela, um substituto interno cuida das maiúsculas acentuadas.
 Instalar `php-mbstring` é recomendado, mas não obrigatório.
 
+No Debian e no Ubuntu, `calendar` já vem compilada no pacote base do PHP, mas
+**`pdo_sqlite` não**: ela mora num pacote à parte, que não entra por padrão.
+Sem ela toda tela devolve 500, e o log do Apache diz
+`PDOException: could not find driver`. É o tropeço mais provável numa máquina
+nova, porque `php` e `libapache2-mod-php` instalam sem reclamar:
+
+    sudo apt-get install -y php-sqlite3 acl
+
+Para conferir o que está carregado — as três precisam aparecer:
+
+    php -m | grep -E '^(pdo_sqlite|calendar|mbstring)$'
+
+
 ## Como se usa
 
-1. **Cursos** — cadastre uma vez. O nome entra no título:
-   “CALENDÁRIO DO CURSO *nome* *ano*”. Cada curso tem um **nível de ensino**,
+1. **Cursos** — cadastre uma vez. O nome entra no título do documento, junto do
+   nível: “CALENDÁRIO DO CURSO *nível* EM *nome* / *ano*”, pelo modelo em
+   *Configurações*. Como o nível já entra por conta própria, **o nome do curso
+   deve trazer só o curso** — `ENGENHARIA AGRONÔMICA`, não
+   `SUPERIOR EM ENGENHARIA AGRONÔMICA`, que sairia repetido no cabeçalho. Cada curso tem um **nível de ensino**,
    escolhido entre os cadastrados em **Níveis** — o sistema já vem com Superior,
    Técnico Integrado, Técnico Concomitante e Técnico Subsequente. O nível serve
    para direcionar eventos globais; um nível em uso por algum curso ou evento
    não pode ser excluído, e renomeá-lo não afeta nada, porque o que fica gravado
    é a *chave* (`superior`, `integrado`…), que nasce do nome e não muda mais.
+   O campo **Disciplinas** diz se elas duram um semestre ou o ano inteiro
+   (*Semestral* ou *Anual*); um curso novo nasce semestral, e os cadastrados
+   antes deste campo existir entraram assim na migração. Por enquanto ele é
+   informativo — aparece na lista de cursos e não altera a contagem de dias
+   letivos, que continua saindo dos dois semestres do calendário.
 2. **Feriados** — cadastro único, **válido em todos os anos**: nada de inserir
    feriado ano a ano. O de data fixa guarda dia e mês; o **móvel** guarda a
    distância até o domingo de Páscoa, e o sistema calcula a data de cada ano
@@ -88,18 +140,26 @@ Instalar `php-mbstring` é recomendado, mas não obrigatório.
    `-2`, Corpus Christi `60`). O sistema já vem com os nacionais, os estaduais
    do Tocantins e os pontos facultativos federais — o que vale igual em todo
    campus. Os **municipais não vêm**, porque mudam de cidade para cidade: cada
-   campus cadastra os seus aqui, na categoria *Feriado Municipal*, que já vem
-   criada. Junto com *campus* e *cidade* em **Configurações**, é o que uma
-   instalação nova pede antes de qualquer outra coisa.
-   O que também **não** entra aqui são as **emendas** — a segunda antes de um
-   feriado de terça, a sexta depois de Corpus Christi. Elas não são regra: a
-   portaria anual do MGI as declara ano a ano, sem nome e sem data fixa (em
-   2026, 20/4 e 5/6). O lugar delas é *Eventos globais*, com a categoria *Ponto
-   Facultativo*, um ano de cada vez.
+   campus cadastra os seus aqui, com o **tipo** *Feriado Municipal*. Junto com
+   *campus* e *cidade* em **Configurações**, é o que uma instalação nova pede
+   antes de qualquer outra coisa.
+   Cada feriado tem um **tipo** — *Feriado Nacional*, *Estadual*, *Municipal* ou
+   *Ponto Facultativo* —, que é a origem da norma e sai impressa depois do nome
+   (“25 - Natal - Feriado Nacional”). É o tipo que decide a prioridade na cor do
+   dia; a **cor de cada tipo se escolhe em *Configurações***, não aqui e não na
+   tela de Legenda.
+   As **emendas** — a segunda antes de um feriado de terça, a sexta depois de
+   Corpus Christi — também entram aqui, como *Ponto Facultativo*. Cuidado com o
+   que este cadastro é: uma regra que vale para **todos os anos**. A portaria
+   anual do MGI declara as emendas ano a ano (em 2026, 20/4 e 5/6), então uma
+   emenda cadastrada como data fixa vai reaparecer em 2027, quando o feriado cai
+   noutro dia da semana e emenda nenhuma foi declarada — nesse ano, é desmarcar
+   *Ativo*.
    Corrigir um feriado conserta todos os anos de uma vez, e desmarcar *Ativo*
    tira o feriado de circulação sem apagar o cadastro. Os feriados aparecem na
-   grade e na lista de cada mês com a marca *feriado*; eles não são eventos,
-   então não se editam nem se apagam por lá — o lápis leva a esta tela.
+   grade e na lista de cada mês com a marca *feriado*, mas **não são eventos**:
+   fora desta tela eles são só leitura — não se editam, não se apagam e não têm
+   lápis. Quem mexe neles é esta tela, e aqui a grade continua clicável.
 3. **Eventos globais** — recessos, planejamento e prazos institucionais do ano,
    na mesma grade anual clicável da tela de um
    calendário (sem as linhas de dias letivos, que dependem dos semestres de um
@@ -114,6 +174,19 @@ Instalar `php-mbstring` é recomendado, mas não obrigatório.
 4. **Calendários** — um por curso/ano. Ao criar, dá para **copiar os eventos de
    outro calendário**, com as datas deslocadas para o novo ano — é o caminho
    normal na virada de ano.
+   As datas que se digitam são as dos **quatro bimestres**, oito ao todo, e
+   **os semestres saem delas**: o 1º semestre vai do início do 1º bimestre ao
+   fim do 2º, e o 2º do início do 3º ao fim do 4º. O intervalo entre o 2º e o
+   3º é o recesso do meio do ano, fora de qualquer semestre — e por isso não
+   conta dia letivo, como sempre foi. As oito datas vêm sugeridas e acompanham
+   a troca do ano.
+   Como os campos se chamam depende do **regime do curso** (o campo
+   *Disciplinas*): no anual eles correm de *1º* a *4º bimestre*; no semestral
+   cada semestre tem o seu *1º* e *2º*, e o rótulo diz de qual semestre se
+   trata. Trocar o curso no formulário troca os rótulos na hora — as datas
+   ficam onde estão, porque o que muda é só o nome de cada campo.
+   Um calendário criado antes dos bimestres existirem tem só os dois semestres:
+   ao abri-lo em *Editar*, a tela avisa e sugere partir cada semestre ao meio.
 5. Cada calendário da lista tem três botões. **Editar** abre os dados do
    calendário: situação, local e data, as datas dos dois semestres, as metas de
    dias letivos e as observações que saem no resumo impresso — é para onde o
@@ -122,10 +195,10 @@ Instalar `php-mbstring` é recomendado, mas não obrigatório.
 6. Na tela de **Gerenciar** ficam os eventos específicos daquele curso. Ela
    mostra **a grade do ano inteiro com a mesma cara da impressão** — nome do mês
    em verde, dias pintados pela categoria e a contagem de dias letivos no rodapé
-   de cada mês. **Clicar em um dia** abre o
-   que cai nele: cada evento com sua categoria, um atalho para editar (os da
-   um atalho para editar e o botão *Novo evento neste dia*, que já volta com a
-   data preenchida. O cadastro e a alteração de evento acontecem **em um
+   de cada mês. **Clicar em um dia** abre o que cai nele: cada evento com sua
+   categoria e um atalho para editar — menos os feriados, que aparecem só para
+   conferência — e o botão *Novo evento neste dia*, que já volta com a data
+   preenchida. O cadastro e a alteração de evento acontecem **em um
    modal**: ele abre sozinho quando a página vem de *Editar*, de um dia clicado
    na grade ou do botão *Novo evento*. O formulário é o mesmo das duas telas —
    dentro de um calendário, o campo **Abrangência** decide se o evento é
@@ -135,19 +208,41 @@ Instalar `php-mbstring` é recomendado, mas não obrigatório.
    embaixo do número, para aparecerem mesmo quando a categoria não pinta.
    A legenda fica acima da grade e, **embaixo de cada mês, a lista dos seus
    eventos** — três meses lado a lado, como no papel. Cada linha da lista abre o
-   evento para edição e traz um × para excluir; os globais são marcados com *global* e só têm o atalho de edição, já que apagá-los ali
-   afetaria todos os calendários do ano. Todo evento entra nessa lista — a mesma
-   que sai impressa. Abaixo da grade fica o **resumo dos semestres**: quantas segundas, terças,
-   quartas, quintas, sextas e sábados letivos cada semestre tem, o total contra
-   a meta e a soma do ano — os mesmos números que saem no papel.
+   evento para edição e traz um × para excluir; os globais são marcados com
+   *global* e só têm o atalho de edição, já que apagá-los ali afetaria todos os
+   calendários do ano, e os *feriados* não têm nem um nem outro: são texto, e
+   quem mexe neles é a tela de Feriados. Todo evento entra nessa lista — a mesma
+   que sai impressa.
+   **Passar o mouse numa linha acende, na grade, os dias daquele evento** — uma
+   lâmina azul translúcida por cima da célula, com o número em branco e negrito.
+   Um evento de 26 dias marca as 26 células de uma vez, que é o que torna
+   visível o que a lista só diz por escrito (“5 a 30”). A lâmina é escura de
+   propósito: assim o realce vale igual sobre qualquer cor de categoria, do
+   branco do dia útil ao vermelho do feriado. O realce acompanha o foco do
+   teclado também, para quem navega por Tab.
+   Cada linha leva uma **etiqueta de origem**, colorida para se achar de
+   relance: *feriado* em vermelho (vem do cadastro e vale para todos os anos),
+   *global* em verde (vale para todos os calendários do ano) e *local* em azul
+   (só deste calendário). Os marcos de bimestre levam *automático*, em cinza,
+   porque não são origem: são escritos pelo sistema. Nas telas de *Eventos
+   globais* e de *Feriados* a etiqueta não aparece — ali tudo é do mesmo tipo,
+   e ela só repetiria a mesma palavra em toda linha. Abaixo da grade fica o **resumo dos semestres e bimestres**: quantas segundas,
+   terças, quartas, quintas, sextas e sábados letivos cada período tem, com os
+   dois bimestres recuados sob o semestre a que pertencem, e a soma do ano
 7. **Gerar** — abre o calendário pronto. `Ctrl+P` → A4, paisagem, **gráficos de
    fundo ativados** → PDF.
-8. **Configurações** — o que vale para o sistema inteiro, em quatro blocos:
+8. **Configurações** — o que vale para o sistema inteiro, em cinco blocos:
    *Instituição* (órgão do cabeçalho impresso, campus e cidade), *Documento
-   gerado* (modelo do título, com `{curso}` e `{ano}`), *Padrões de um calendário
+   gerado* (modelo do título, com `{curso}`, `{nivel}` e `{ano}`), *Padrões de um calendário
    novo* (situação e meta de dias letivos por semestre, que cada calendário
-   ajusta depois) e *Cores fixas do calendário* (dias de segunda a sexta, sábados
-   e domingos, faixa do nome do mês e cabeçalho dos dias úteis). O fuso horário
+   ajusta depois), *Marcos de semestre e bimestre* (os quatro textos que o
+   sistema escreve sozinho nos dias de início e fim de bimestre) e
+   *Cores fixas do calendário* (dias de segunda a sexta, sábados
+   e domingos, faixa do nome do mês, cabeçalho dos dias úteis e — no fim do
+   bloco — a **cor das legendas automáticas**: os quatro tipos de feriado e a de
+   início e fim de semestre e bimestre. A cor é a única coisa ajustável nessas
+   cinco, e a cor do texto acompanha o fundo sozinha, para um fundo escuro não
+   deixar o número ilegível). O fuso horário
    é fixo em `America/Araguaina`, em `lib/boot.php` — o IFTO inteiro fica no
    Tocantins.
    **Numa instalação nova, *campus* e *cidade* vêm como `CAMPUS MIDGARD` e
@@ -184,11 +279,11 @@ Cada categoria da legenda diz o que faz com o dia:
 |---|---|---|
 | **Não** — nunca conta como letivo | o dia deixa de ser letivo | Feriado (nacional, estadual ou municipal), Férias, Ponto Facultativo, Dias Escolares Não Letivos, Planejamento Pedagógico |
 | **Sim** — sempre conta como letivo | o dia passa a ser letivo | um sábado letivo, cadastrado como evento com *Conta como letivo = sim* |
-| **Neutro** — o dia da semana decide | só pinta | Exame Final, Culminância, Início/Fim de semestre |
+| **Neutro** — o dia da semana decide | só pinta | Exame Final, Culminância |
 
 Regras aplicadas na ordem:
 
-1. Fora dos semestres cadastrados, nenhum dia conta.
+1. Fora dos semestres — que saem dos bimestres —, nenhum dia conta.
 2. O “não” vence o “sim” (feriado em cima de sábado letivo derruba o dia).
 3. Onde todas as categorias do dia são neutras, conta de segunda a sexta.
 4. A cor exibida é a da categoria de maior **prioridade** entre os eventos do dia.
@@ -196,10 +291,52 @@ Regras aplicadas na ordem:
    de que o sistema depende, com valor fixo e sem exclusão — *Feriado Nacional*
    (99), *Feriado Estadual* (98), *Feriado Municipal* (97) e *Ponto Facultativo*
    (96) —, que sempre vencem a cor do dia, ganhando entre si o de alcance maior.
+   Essas quatro **nem aparecem na tela de Legenda**: não se criam, não se
+   excluem e não se renomeiam — o nome é a identidade com que o cadastro de
+   feriados as encontra, e a prioridade é fixa. A única coisa ajustável nelas é
+   a cor, em *Configurações*. Também não aparecem para escolher num evento, já
+   que quem as aplica é o cadastro de feriados. Mas **continuam saindo na
+   legenda impressa**.
+
+### Os marcos de bimestre, escritos pelo sistema
+
+Nos oito dias de início e fim de bimestre o sistema escreve sozinho uma linha na
+lista do mês — a mesma que sai impressa —, **sempre em negrito**:
+
+    2  - Início do 1º semestre e 1º bimestre letivo de 2026/1
+    17 - Fim do 1º Bimestre
+    20 - Início do 2º Bimestre
+    30 - Fim do 2º Bimestre e Fim do 1º Semestre letivo 2026/1
+
+O primeiro bimestre de cada semestre abre o semestre e o último o fecha, e nesses
+dois dias o texto fala das duas coisas. Os **quatro modelos** ficam em
+*Configurações*, com as trocas `{ano}`, `{semestre}` (1 ou 2) e `{bimestre}` — o
+número do bimestre como ele se chama naquele curso. Esvaziar um modelo tira
+aquela linha do calendário.
+
+Esses dias são pintados pela legenda *Início ou Fim de semestre/bimestre
+letivo*, cuja **cor se escolhe em Configurações**, junto com as dos feriados.
+Ela é **neutra**: o primeiro e o último dia de aula continuam contando pela
+regra do dia da semana, e um feriado em cima deles vence a cor, por ter
+prioridade maior.
+
+Os marcos **não são eventos**: não entram na conta de eventos do calendário, não
+se editam e não se apagam. Quem manda neles são as datas dos bimestres e o
+modelo do texto.
 
 O dia que nenhum evento pinta fica com a **cor fixa da grade**: uma para segunda
 a sexta e outra para sábado e domingo, escolhidas em *Configurações* junto com a
-cor da faixa do mês e a do cabeçalho dos dias úteis. Fim de semana não é legenda:
+cor da faixa do mês e a do cabeçalho dos dias úteis. A de segunda a sexta fecha a
+legenda — impressa e da tela — como *Representação de Dia Letivo*: é a cor mais
+frequente do calendário, e sem essa linha a legenda explicaria todas as outras
+menos a do dia de aula normal.
+
+Na legenda, **nacional, estadual e municipal viram uma linha só, *Feriado*,
+enquanto as três estiverem na mesma cor** — que é como o sistema as entrega.
+Três linhas com o mesmo vermelho não explicam nada, e a página é apertada; o que
+distingue as três é a origem da norma, e isso continua dito na lista do mês
+(“25 - Natal - Feriado Nacional”). Dar cor própria a uma delas em *Configurações*
+traz as três de volta separadas, que é quando a distinção passa a valer no papel. Fim de semana não é legenda:
 é cor, e a regra de não ser letivo vem do dia da semana, não de uma categoria.
 
 O topo da tela de Gerenciar compara o total calculado com a meta de dias letivos,
@@ -232,7 +369,10 @@ divergência.
                             layout.php (barra lateral), grade_calendario.php
                             (a grade anual, usada pelas duas telas),
                             feriados.php (as regras de data dos feriados) e
-                            form_evento.php (o modal de evento)
+                            form_evento.php (o modal de evento),
+                            campos_bimestres.php (as oito datas, nas duas telas
+                            que as pedem) e valida_bimestres.php (as mesmas
+                            regras no navegador)
     assets/                 app.css, calendario.css (impressão), vendor/ (Bootstrap)
     data/                   calendario.sqlite
     backups/                cópias geradas pela tela de Backup

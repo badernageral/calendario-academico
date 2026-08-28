@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # As mesmas extensões que a aplicação exige: pdo_sqlite para o banco e
-      # calendar para easter_date(), que baliza os feriados móveis. mbstring é
+      # calendar para easter_days(), que baliza os feriados móveis. mbstring é
       # opcional no sistema, mas aqui entra para o teste cobrir o caminho dela.
       - uses: shivammathur/setup-php@v2
         with:

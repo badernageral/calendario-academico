@@ -92,20 +92,8 @@ function feriadosDoAno(PDO $db, int $ano): array
  */
 function semestresSugeridos(PDO $db, int $ano): array
 {
-    $feriados = [];
-    foreach (feriadosDoAno($db, $ano) as $f) {
-        $feriados[$f['data']] = true;
-    }
-    $ehUtil = static function (DateTimeImmutable $d) use ($feriados): bool {
-        $dow = (int) $d->format('w');
-        return $dow !== 0 && $dow !== 6 && !isset($feriados[$d->format('Y-m-d')]);
-    };
-    $ate = static function (DateTimeImmutable $d, string $passo) use ($ehUtil): string {
-        for ($i = 0; $i < 40 && !$ehUtil($d); $i++) {
-            $d = $d->modify($passo);
-        }
-        return $d->format('Y-m-d');
-    };
+    $ehUtil = ehDiaUtil($db, $ano);
+    $ate = static fn (DateTimeImmutable $d, string $passo): string => ateDiaUtil($d, $passo, $ehUtil);
 
     $natal = new DateTimeImmutable("$ano-12-25");
     $sexta = $natal->modify('monday this week')->modify('-3 days');
@@ -116,6 +104,67 @@ function semestresSugeridos(PDO $db, int $ano): array
         'sem2_inicio' => $ate(new DateTimeImmutable("$ano-08-01"), '+1 day'),
         'sem2_fim'    => $ate($sexta, '-1 day'),
     ];
+}
+
+/**
+ * Diz se uma data é dia útil naquele ano: dia de semana que não é feriado nem
+ * ponto facultativo. Os feriados do ano são resolvidos uma vez só.
+ */
+function ehDiaUtil(PDO $db, int $ano): Closure
+{
+    static $cache = [];
+    if (!isset($cache[$ano])) {
+        $f = [];
+        foreach (feriadosDoAno($db, $ano) as $x) {
+            $f[$x['data']] = true;
+        }
+        $cache[$ano] = $f;
+    }
+    $feriados = $cache[$ano];
+    return static function (DateTimeImmutable $d) use ($feriados): bool {
+        $dow = (int) $d->format('w');
+        return $dow !== 0 && $dow !== 6 && !isset($feriados[$d->format('Y-m-d')]);
+    };
+}
+
+/** Anda de $passo em $passo até cair num dia útil. Devolve Y-m-d. */
+function ateDiaUtil(DateTimeImmutable $d, string $passo, Closure $ehUtil): string
+{
+    for ($i = 0; $i < 40 && !$ehUtil($d); $i++) {
+        $d = $d->modify($passo);
+    }
+    return $d->format('Y-m-d');
+}
+
+/**
+ * Datas prováveis dos quatro bimestres, para abrir o formulário preenchido.
+ * Sai dos semestres sugeridos, partindo cada um ao meio num dia útil: o 1º
+ * bimestre vai do início do semestre até essa metade, e o 2º do dia útil
+ * seguinte até o fim do semestre. É palpite, como o dos semestres — quem monta
+ * o calendário ajusta.
+ */
+function bimestresSugeridos(PDO $db, int $ano): array
+{
+    $s      = semestresSugeridos($db, $ano);
+    $ehUtil = ehDiaUtil($db, $ano);
+    $out    = [];
+    $n      = 1;
+
+    foreach ([[$s['sem1_inicio'], $s['sem1_fim']], [$s['sem2_inicio'], $s['sem2_fim']]] as [$ini, $fim]) {
+        $a     = new DateTimeImmutable($ini);
+        $b     = new DateTimeImmutable($fim);
+        $meio  = $a->modify('+' . intdiv((int) $a->diff($b)->days, 2) . ' days');
+        $fimA  = ateDiaUtil($meio, '-1 day', $ehUtil);
+        $iniB  = ateDiaUtil((new DateTimeImmutable($fimA))->modify('+1 day'), '+1 day', $ehUtil);
+
+        $out["bim{$n}_inicio"] = $ini;
+        $out["bim{$n}_fim"]    = $fimA;
+        $n++;
+        $out["bim{$n}_inicio"] = $iniB;
+        $out["bim{$n}_fim"]    = $fim;
+        $n++;
+    }
+    return $out;
 }
 
 /** "25 de dezembro" ou "60 dias depois da Páscoa" — como a regra se lê na tela. */

@@ -16,8 +16,19 @@ function tratarPostEvento(PDO $db, int $ano, ?int $calendarioId, string $voltarP
     $id   = postInt('id');
 
     if ($acao === 'excluir_evento') {
-        $db->prepare('DELETE FROM eventos WHERE id = ?')->execute([$id]);
-        flash('Evento excluído.');
+        // O id vem de um formulário da própria tela, mas a tela pode estar
+        // velha: o evento pode ter virado global depois que a página foi
+        // montada, e a grade de um calendário esconde o × dos globais de
+        // propósito — apagá-los ali afetaria todos os calendários do ano.
+        // Então o DELETE só alcança o que esta tela realmente manda.
+        $st = $calendarioId === null
+            ? $db->prepare('DELETE FROM eventos WHERE id = ? AND ano = ? AND calendario_id IS NULL')
+            : $db->prepare('DELETE FROM eventos WHERE id = ? AND ano = ? AND calendario_id = ?');
+        $st->execute($calendarioId === null ? [$id, $ano] : [$id, $ano, $calendarioId]);
+
+        $st->rowCount() > 0
+            ? flash('Evento excluído.')
+            : flash('O evento não foi excluído: ele não é desta tela. Recarregue a página.', 'erro');
         redirect($voltarPara);
     }
 

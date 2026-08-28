@@ -80,16 +80,60 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
                   <div class="form-text">Dá para escolher mais de um: o rótulo vira “14 a 16 e 19 a 20”.</div>
                 </div>
                 <div class="col-12">
-                  <label class="form-label">Categoria (cor)</label>
-                  <select name="categoria_id" class="form-select">
-                    <option value="">— sem cor, só na lista —</option>
-                    <?php foreach ($cats as $c): ?>
-                      <?php if ((int) $c['oculta'] === 1) continue; ?>
-                      <option value="<?= $c['id'] ?>" <?= (int) ($ev['categoria_id'] ?? 0) === (int) $c['id'] ? 'selected' : '' ?>>
-                        <?= e($c['nome']) ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
+                  <?php
+                  // Dropdown próprio, e não um <select>: a cor de fundo de uma
+                  // <option> é sugestão para o navegador, e o Firefox no Linux
+                  // simplesmente a ignora. Aqui cada linha é HTML de verdade, e
+                  // o retângulo aparece igual em todo navegador. O valor vai num
+                  // campo escondido com o mesmo nome de antes, então o servidor
+                  // não sabe que algo mudou.
+                  $catAtual = null;
+                  foreach ($cats as $c) {
+                      if ((int) ($ev['categoria_id'] ?? 0) === (int) $c['id']) {
+                          $catAtual = $c;
+                      }
+                  }
+                  ?>
+                  <label class="form-label" for="botaoCategoria">Categoria (cor)</label>
+                  <div class="dropdown seletor-categoria">
+                    <button type="button" class="form-select text-start dropdown-toggle-sem-seta"
+                            id="botaoCategoria" data-bs-toggle="dropdown" data-bs-display="static"
+                            aria-expanded="false">
+                      <span class="retangulo-cor <?= $catAtual ? '' : 'sem-cor' ?>"
+                            style="<?= $catAtual ? 'background:' . e($catAtual['cor']) : '' ?>"></span>
+                      <span class="rotulo"><?= $catAtual ? e($catAtual['nome']) : '— sem cor, só na lista —' ?></span>
+                    </button>
+                    <ul class="dropdown-menu w-100">
+                      <li>
+                        <button type="button" class="dropdown-item" data-valor="" data-cor="">
+                          <span class="retangulo-cor sem-cor"></span>
+                          <span>— sem cor, só na lista —</span>
+                        </button>
+                      </li>
+                      <?php foreach ($cats as $c): ?>
+                        <?php
+                        $ehAtual = (int) ($ev['categoria_id'] ?? 0) === (int) $c['id'];
+                        // A oculta não se oferece: quem a aplica é o cadastro de
+                        // feriados. Mas se o evento já está nela — dado antigo, ou
+                        // vindo do importador da planilha —, ela precisa aparecer:
+                        // sem a linha, o campo cairia em “sem cor” e a categoria
+                        // sumiria na primeira gravação, sem ninguém pedir.
+                        if ((int) $c['oculta'] === 1 && !$ehAtual) {
+                            continue;
+                        }
+                        ?>
+                        <li>
+                          <button type="button" class="dropdown-item<?= $ehAtual ? ' active' : '' ?>"
+                                  data-valor="<?= (int) $c['id'] ?>" data-cor="<?= e($c['cor']) ?>">
+                            <span class="retangulo-cor" style="background:<?= e($c['cor']) ?>"></span>
+                            <span><?= e($c['nome']) ?><?= (int) $c['oculta'] === 1 ? ' — vem do cadastro de feriados' : '' ?></span>
+                          </button>
+                        </li>
+                      <?php endforeach; ?>
+                    </ul>
+                    <input type="hidden" name="categoria_id" id="categoriaEvento"
+                           value="<?= (int) ($ev['categoria_id'] ?? 0) ?: '' ?>">
+                  </div>
                 </div>
                 <div class="col-12">
                   <label class="form-label">Rótulo de datas</label>
@@ -163,7 +207,7 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
                   <div class="form-check">
                     <input class="form-check-input nivel-item" type="checkbox" name="nivel[]" value="<?= $k ?>"
                            id="nivel_<?= $k ?>" <?= in_array($k, $niveisMarcados, true) ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="nivel_<?= $k ?>"><?= $v ?></label>
+                    <label class="form-check-label" for="nivel_<?= $k ?>"><?= e($v) ?></label>
                   </div>
                 <?php endforeach; ?>
               </div>
@@ -351,6 +395,36 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
 
   sincronizar();
   desenhar();
+})();
+</script>
+
+<script>
+/**
+ * Escolher uma categoria: a linha clicada leva a cor e o nome para o botão do
+ * campo, e o id para o campo escondido, que é o que vai no POST.
+ */
+(function () {
+  var caixa = document.querySelector('.seletor-categoria');
+  if (!caixa) { return; }
+
+  var botao   = caixa.querySelector('#botaoCategoria'),
+      campo   = caixa.querySelector('#categoriaEvento'),
+      quadro  = botao.querySelector('.retangulo-cor'),
+      rotulo  = botao.querySelector('.rotulo');
+
+  caixa.querySelectorAll('.dropdown-item').forEach(function (item) {
+    item.addEventListener('click', function () {
+      var cor = item.dataset.cor || '';
+
+      campo.value        = item.dataset.valor || '';
+      rotulo.textContent = item.querySelector('span:last-child').textContent.trim();
+      quadro.style.background = cor;
+      quadro.classList.toggle('sem-cor', cor === '');
+
+      caixa.querySelectorAll('.dropdown-item.active').forEach(function (a) { a.classList.remove('active'); });
+      item.classList.add('active');
+    });
+  });
 })();
 </script>
 

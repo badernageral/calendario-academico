@@ -13,24 +13,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('Escolha o curso e informe o ano.', 'erro');
             redirect('calendarios.php?novo=1');
         }
-        [$semestres, $erro] = semestresDoFormulario();
+        // A mesma faixa do campo do formulário: um ano fora dela geraria um
+        // calendário que nenhuma tela por ano alcança depois.
+        if ($ano !== anoDaTela($ano, 0)) {
+            flash('O ano precisa ficar entre 2000 e 2100.', 'erro');
+            redirect('calendarios.php?novo=1');
+        }
+        // Os rótulos do erro dependem do regime do curso escolhido.
+        [$bimestres, $erro] = bimestresDoFormulario(regimeDoCurso($db, $curso));
         if ($erro !== '') {
             flash($erro, 'erro');
             redirect('calendarios.php?novo=1');
         }
 
-        $meta = (int) cfg('meta_letivos');
         try {
             $st = $db->prepare(
-                'INSERT INTO calendarios (curso_id, ano, situacao, local_texto, meta_letivos_s1, meta_letivos_s2, observacoes)
-                 VALUES (?,?,?,?,?,?,?)'
+                'INSERT INTO calendarios (curso_id, ano, situacao, local_texto, observacoes)
+                 VALUES (?,?,?,?,?)'
             );
             $st->execute([
                 $curso, $ano,
                 post('situacao', cfg('situacao')),
                 post('local_texto'),
-                postInt('meta_letivos_s1', $meta),
-                postInt('meta_letivos_s2', $meta),
                 post('observacoes'),
             ]);
             $novoId = (int) $db->lastInsertId();
@@ -39,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('calendarios.php?novo=1');
         }
 
-        salvarSemestres($db, $novoId, $semestres);
+        salvarPeriodos($db, $novoId, $bimestres);
 
         $origem = postInt('copiar_de');
         if ($origem) {
@@ -102,13 +106,25 @@ $cals   = $db->query(
 // Sem curso não há o que agendar: nesse caso a tela só convida a cadastrar um.
 $abrirModal = $cursos && get('novo') !== '';
 
-// O formulário abre com as datas prováveis dos semestres já preenchidas. Como
+// O formulário abre com as datas prováveis dos bimestres já preenchidas. Como
 // elas dependem do ano — e dos feriados dele —, vai uma sugestão por ano à mão
 // do formulário, para as datas acompanharem a troca do ano sem recarregar.
 $anoPadrao = (int) date('Y');
 $sugestoes = [];
 for ($a = $anoPadrao - 1; $a <= $anoPadrao + 5; $a++) {
-    $sugestoes[$a] = semestresSugeridos($db, $a);
+    $sugestoes[$a] = bimestresSugeridos($db, $a);
+}
+
+// O rótulo de cada campo depende do regime do curso, e aqui o curso ainda muda
+// no <select>: vai o regime de cada um e os rótulos dos dois regimes, para o
+// script trocar os textos sem ida ao servidor.
+$regimePorCurso = [];
+foreach ($cursos as $c) {
+    $regimePorCurso[(int) $c['id']] = $c['regime'];
+}
+$rotulosPorRegime = [];
+foreach (array_keys(regimesCurso()) as $r) {
+    $rotulosPorRegime[$r] = rotulosBimestre($r);
 }
 
 head('Calendários', 'calendarios');
@@ -156,7 +172,7 @@ head('Calendários', 'calendarios');
             <td><span class="badge bg-light text-secondary border"><?= e($c['situacao']) ?></span></td>
             <td class="text-center"><?= (int) $c['n_eventos'] ?></td>
             <td class="text-end text-nowrap">
-              <a class="btn btn-sm btn-outline-secondary" href="editar_calendario.php?id=<?= $c['id'] ?>" title="Dados e semestres"><i class="bi bi-pencil me-1"></i>Editar</a>
+              <a class="btn btn-sm btn-outline-secondary" href="editar_calendario.php?id=<?= $c['id'] ?>" title="Dados e bimestres"><i class="bi bi-pencil me-1"></i>Editar</a>
               <a class="btn btn-sm btn-outline-primary" href="calendario.php?id=<?= $c['id'] ?>" title="Grade e eventos"><i class="bi bi-grid-3x3 me-1"></i>Gerenciar</a>
               <a class="btn btn-sm btn-outline-dark" href="gerar.php?id=<?= $c['id'] ?>" target="_blank"><i class="bi bi-printer me-1"></i>Gerar</a>
               <form method="post" class="d-inline" onsubmit="return confirm('Excluir o calendário e todos os seus eventos?')">
@@ -189,7 +205,7 @@ head('Calendários', 'calendarios');
 
         <div class="modal-body">
           <input type="hidden" name="acao" value="novo">
-          <div class="alert alert-danger d-none erro-semestres" role="alert"></div>
+          <div class="alert alert-danger d-none erro-periodos" role="alert"></div>
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Curso</label>
@@ -213,45 +229,11 @@ head('Calendários', 'calendarios');
               <input name="local_texto" class="form-control" value="<?= e(localEData()) ?>">
             </div>
 
-            <div class="col-12"><hr class="my-1"></div>
-            <div class="col-12">
-              <div class="form-text mt-0">
-                As quatro datas são obrigatórias: são elas que delimitam o período letivo do ano.
-                Vêm sugeridas — 1º semestre do primeiro dia útil de fevereiro ao último de junho,
-                2º do primeiro dia útil de agosto ao fim da semana anterior à do Natal — e
-                acompanham a troca do ano. Ajuste o que for diferente.
-              </div>
-            </div>
-
-            <div class="col-md-3">
-              <label class="form-label">1º semestre — início</label>
-              <input type="date" name="sem1_inicio" class="form-control" required
-                     value="<?= e($sugestoes[$anoPadrao]['sem1_inicio']) ?>">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">1º semestre — fim</label>
-              <input type="date" name="sem1_fim" class="form-control" required
-                     value="<?= e($sugestoes[$anoPadrao]['sem1_fim']) ?>">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">2º semestre — início</label>
-              <input type="date" name="sem2_inicio" class="form-control" required
-                     value="<?= e($sugestoes[$anoPadrao]['sem2_inicio']) ?>">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">2º semestre — fim</label>
-              <input type="date" name="sem2_fim" class="form-control" required
-                     value="<?= e($sugestoes[$anoPadrao]['sem2_fim']) ?>">
-            </div>
-
-            <div class="col-md-3">
-              <label class="form-label">Meta de dias letivos — 1º sem.</label>
-              <input type="number" name="meta_letivos_s1" class="form-control" value="<?= (int) cfg('meta_letivos') ?>">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Meta de dias letivos — 2º sem.</label>
-              <input type="number" name="meta_letivos_s2" class="form-control" value="<?= (int) cfg('meta_letivos') ?>">
-            </div>
+            <?php
+            $valores = $sugestoes[$anoPadrao];
+            $regime  = $cursos ? $cursos[0]['regime'] : 'semestral';
+            require __DIR__ . '/lib/campos_bimestres.php';
+            ?>
 
             <div class="col-12">
               <label class="form-label">Observações</label>
@@ -284,14 +266,23 @@ head('Calendários', 'calendarios');
 
 <script>
 /**
- * Trocar o ano troca as datas sugeridas dos semestres. As sugestões vêm
- * prontas do servidor, que é quem sabe onde caem os feriados de cada ano; se o
- * ano digitado estiver fora da lista, as datas ficam como estão.
+ * Duas coisas mudam sozinhas neste formulário:
+ *
+ * - trocar o **ano** troca as datas sugeridas dos bimestres. As sugestões vêm
+ *   prontas do servidor, que é quem sabe onde caem os feriados de cada ano; se
+ *   o ano digitado estiver fora da lista, as datas ficam como estão;
+ * - trocar o **curso** troca os rótulos dos campos, porque um curso anual tem
+ *   1º a 4º bimestre e um semestral tem 1º e 2º em cada semestre. As datas não
+ *   se mexem: o que muda é só como cada campo se chama.
  */
 (function () {
   var SUGESTOES = <?= json_encode($sugestoes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-  var ano = document.getElementById('anoCalendario');
-  if (!ano) { return; }
+  var REGIMES   = <?= json_encode($regimePorCurso, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  var ROTULOS   = <?= json_encode($rotulosPorRegime, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+  var ano   = document.getElementById('anoCalendario');
+  var curso = document.querySelector('#modalCalendario [name="curso_id"]');
+  if (!ano || !curso) { return; }
 
   ano.addEventListener('change', function () {
     var s = SUGESTOES[ano.value];
@@ -301,10 +292,20 @@ head('Calendários', 'calendarios');
       if (el) { el.value = s[campo]; }
     });
   });
+
+  function rotular() {
+    var r = ROTULOS[REGIMES[curso.value] || 'semestral'];
+    if (!r) { return; }
+    curso.form.querySelectorAll('[data-rotulo]').forEach(function (el) {
+      if (r[el.dataset.rotulo]) { el.textContent = r[el.dataset.rotulo]; }
+    });
+  }
+  curso.addEventListener('change', rotular);
+  rotular();
 })();
 </script>
 
-<?php require __DIR__ . '/lib/valida_semestres.php'; ?>
+<?php require __DIR__ . '/lib/valida_bimestres.php'; ?>
 <?php endif; ?>
 
 <?php foot(); ?>

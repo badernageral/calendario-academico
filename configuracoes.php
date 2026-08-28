@@ -4,12 +4,6 @@ require __DIR__ . '/lib/boot.php';
 $db = db();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
-    $meta = postInt('meta_letivos', 100);
-
-    if ($meta < 1 || $meta > 366) {
-        flash('A meta de dias letivos precisa ficar entre 1 e 366.', 'erro');
-        redirect('configuracoes.php');
-    }
     // O modelo do título sem {curso} sairia igual em todo calendário — deixa
     // passar, mas avisa, porque quase sempre é engano.
     $modelo = post('titulo_modelo') !== '' ? post('titulo_modelo') : cfgPadroes()['titulo_modelo'];
@@ -19,12 +13,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
     $cor = static fn (string $campo): string => postCor($campo, cfgPadroes()[$campo]);
 
     $valores = [
+        'texto_inicio_semestre' => post('texto_inicio_semestre'),
+        'texto_fim_bimestre'    => post('texto_fim_bimestre'),
+        'texto_inicio_bimestre' => post('texto_inicio_bimestre'),
+        'texto_fim_semestre'    => post('texto_fim_semestre'),
         'orgao'         => post('orgao'),
         'campus'        => post('campus'),
         'cidade'        => post('cidade'),
         'titulo_modelo' => $modelo,
         'situacao'      => post('situacao'),
-        'meta_letivos'  => (string) $meta,
         'cor_dia_util'  => $cor('cor_dia_util'),
         'cor_dia_fds'   => $cor('cor_dia_fds'),
         'cor_mes'       => $cor('cor_mes'),
@@ -34,6 +31,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
         cfgSalvar($db, $chave, $valor);
     }
 
+    // As cores das quatro categorias de feriado moram aqui, e não na tela de
+    // Legenda: elas são automáticas — quem as aplica é o cadastro de feriados,
+    // não o formulário de evento —, e a cor é a única coisa delas que se
+    // ajusta. A cor do texto não se escolhe: sai da luminância do fundo, para
+    // um vermelho escuro não virar número ilegível dentro do quadrado.
+    $enviadas = (array) ($_POST['cor_feriado'] ?? []);
+    $up = $db->prepare('UPDATE categorias SET cor = ?, cor_texto = ? WHERE id = ? AND protegida = 1');
+    foreach (categoriasAutomaticas($db) as $cat) {
+        $nova = corValida((string) ($enviadas[(int) $cat['id']] ?? ''), (string) $cat['cor']);
+        $up->execute([$nova, corDeTexto($nova), (int) $cat['id']]);
+    }
+
     flash(str_contains($modelo, '{curso}')
         ? 'Configurações salvas.'
         : 'Configurações salvas — atenção: o modelo do título não usa {curso}, então todo calendário sairá com o mesmo título.');
@@ -41,9 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
 }
 
 // Amostra do título com um curso de verdade, para conferir o modelo sem gerar.
-$cursoAmostra = (string) ($db->query('SELECT nome FROM cursos ORDER BY ativo DESC, nome LIMIT 1')->fetchColumn()
-    ?: 'SUPERIOR EM ENGENHARIA AGRONÔMICA');
-$tituloAmostra = strtr(cfg('titulo_modelo'), ['{curso}' => $cursoAmostra, '{ano}' => date('Y')]);
+$amostra = $db->query('SELECT nome, nivel FROM cursos ORDER BY ativo DESC, nome LIMIT 1')->fetch()
+    ?: ['nome' => 'AGRONOMIA', 'nivel' => (string) array_key_first(niveisCurso())];
+$tituloAmostra = strtr(cfg('titulo_modelo'), Engine::trocasDoTitulo(
+    (string) $amostra['nome'], (string) $amostra['nivel'], (int) date('Y')
+));
 
 head('Configurações', 'configuracoes');
 ?>
@@ -84,7 +95,8 @@ head('Configurações', 'configuracoes');
       <label class="form-label">Modelo do título</label>
       <input name="titulo_modelo" class="form-control" value="<?= e(cfg('titulo_modelo')) ?>">
       <div class="form-text">
-        <code>{curso}</code> e <code>{ano}</code> são trocados na hora de gerar. Hoje sai:
+        <code>{curso}</code>, <code>{nivel}</code> e <code>{ano}</code> são trocados na hora de
+        gerar; o nível sai em maiúsculas, como o resto do título. Hoje sai:
         <strong><?= e($tituloAmostra) ?></strong>
       </div>
     </div>
@@ -92,21 +104,43 @@ head('Configurações', 'configuracoes');
 
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-header bg-transparent fw-semibold">
-      <i class="bi bi-calendar-plus me-1 text-primary"></i>Padrões de um calendário novo
+      <i class="bi bi-calendar-plus me-1 text-primary"></i>Padrão de um calendário novo
     </div>
     <div class="card-body">
+      <label class="form-label">Situação</label>
+      <input name="situacao" class="form-control" value="<?= e(cfg('situacao')) ?>">
+      <div class="form-text">Aparece no rodapé de cada página impressa até ser trocada no calendário.</div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-transparent fw-semibold">
+      <i class="bi bi-bookmark-star me-1 text-primary"></i>Marcos de semestre e bimestre
+    </div>
+    <div class="card-body">
+      <p class="small text-muted">
+        O sistema escreve estas quatro linhas sozinho, na lista do mês e no calendário
+        impresso, nos dias de início e fim de cada bimestre — sempre em <strong>negrito</strong>.
+        As datas saem de cada calendário; o texto sai daqui.
+        Trocas disponíveis: <code>{ano}</code>, <code>{semestre}</code> (1 ou 2) e
+        <code>{bimestre}</code>, que é o número do bimestre como ele se chama naquele curso —
+        1 a 4 no anual, 1 ou 2 dentro de cada semestre no semestral.
+        Deixar um campo vazio tira aquela linha do calendário.
+      </p>
       <div class="row g-3">
-        <div class="col-md-8">
-          <label class="form-label">Situação</label>
-          <input name="situacao" class="form-control" value="<?= e(cfg('situacao')) ?>">
-          <div class="form-text">Aparece no rodapé de cada página impressa até ser trocada no calendário.</div>
+        <?php foreach ([
+            ['texto_inicio_semestre', 'Dia que abre um semestre',  'O primeiro dia do 1º e do 3º bimestre.'],
+            ['texto_fim_bimestre',    'Fim de bimestre',           'O último dia do 1º e do 3º bimestre.'],
+            ['texto_inicio_bimestre', 'Início de bimestre',        'O primeiro dia do 2º e do 4º bimestre.'],
+            ['texto_fim_semestre',    'Dia que fecha um semestre', 'O último dia do 2º e do 4º bimestre.'],
+        ] as [$g_chave, $g_rotulo, $g_ajuda]): ?>
+        <div class="col-md-6">
+          <label class="form-label" for="<?= $g_chave ?>"><?= e($g_rotulo) ?></label>
+          <input name="<?= $g_chave ?>" id="<?= $g_chave ?>" class="form-control"
+                 value="<?= e(cfg($g_chave)) ?>">
+          <div class="form-text"><?= e($g_ajuda) ?></div>
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Meta de dias letivos por semestre</label>
-          <input type="number" name="meta_letivos" class="form-control" min="1" max="366"
-                 value="<?= (int) cfg('meta_letivos') ?>">
-          <div class="form-text">Entra nos dois semestres; cada calendário ajusta o seu depois.</div>
-        </div>
+        <?php endforeach; ?>
       </div>
     </div>
   </div>
@@ -132,6 +166,27 @@ head('Configurações', 'configuracoes');
           <input type="color" name="<?= $g_chave ?>" id="<?= $g_chave ?>"
                  class="form-control form-control-color w-100" value="<?= e(cfg($g_chave)) ?>">
           <div class="form-text"><?= e($g_ajuda) ?></div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+
+      <hr class="my-4">
+
+      <p class="small text-muted mb-3">
+        <strong>Cores das legendas automáticas.</strong> São as que o sistema aplica sozinho:
+        as quatro de feriado, que vêm do cadastro em <a href="feriados.php">Feriados</a>, e a de
+        início e fim de semestre e de bimestre, que sai das datas de cada calendário. Não se
+        criam nem se editam na tela de Legenda, mas saem na legenda do calendário impresso.
+        A cor do texto acompanha o fundo sozinha.
+      </p>
+      <div class="row g-3">
+        <?php foreach (categoriasAutomaticas($db) as $g_nome => $g_cat): ?>
+        <div class="col-md-3">
+          <label class="form-label" for="cor_feriado_<?= (int) $g_cat['id'] ?>"><?= e($g_nome) ?></label>
+          <input type="color" name="cor_feriado[<?= (int) $g_cat['id'] ?>]" id="cor_feriado_<?= (int) $g_cat['id'] ?>"
+                 class="form-control form-control-color w-100" value="<?= e($g_cat['cor']) ?>">
+          <div class="form-text">Prioridade <?= (int) $g_cat['prioridade'] ?> — vence a cor do dia
+            <?= (int) $g_cat['prioridade'] === 99 ? 'sobre todas as outras' : 'sobre as de alcance menor' ?>.</div>
         </div>
         <?php endforeach; ?>
       </div>

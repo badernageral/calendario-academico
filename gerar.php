@@ -9,8 +9,7 @@ if (!$eng) {
 }
 $cal = $eng->cal;
 
-$legenda = array_filter($eng->categorias(), static fn ($c) => (int) $c['na_legenda'] === 1);
-uasort($legenda, static fn ($a, $b) => [(int) $a['ordem'], $a['nome']] <=> [(int) $b['ordem'], $b['nome']]);
+$legenda = legendaDoCalendario($eng->categorias());
 
 $notas      = $eng->notasReposicao();
 $trimestres = [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]];
@@ -48,7 +47,6 @@ function cabecalho(string $titulo): void
 <body>
 
 <div class="barra-tela">
-  <a class="btn" href="calendario.php?id=<?= (int) $cal['id'] ?>">← Editar</a>
   <button class="btn primario" onclick="window.print()">Imprimir / salvar em PDF</button>
   <span class="dica">Na caixa de impressão: papel A4, orientação paisagem, margens padrão e gráficos de fundo ativados.</span>
 </div>

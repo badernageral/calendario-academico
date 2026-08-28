@@ -3,7 +3,7 @@ require __DIR__ . '/lib/boot.php';
 require __DIR__ . '/lib/eventos_crud.php';
 
 $db  = db();
-$ano = getInt('ano') ?: (int) (postInt('ano') ?: (int) date('Y'));
+$ano = anoDaTela(getInt('ano') ?: (int) (postInt('ano') ?: (int) date('Y')), (int) date('Y'));
 
 $voltarPara = 'eventos.php?ano=' . $ano;
 tratarPostEvento($db, $ano, null, $voltarPara);
@@ -52,7 +52,6 @@ $eng = Engine::paraAnoGlobal($db, $ano, $comFeriados);
 $novaData = get('nova_data');
 $novaData = ($novaData !== '' && $eng->dia($novaData) !== null) ? $novaData : '';
 
-$anos = $db->query('SELECT DISTINCT ano FROM eventos WHERE calendario_id IS NULL ORDER BY ano DESC')->fetchAll(PDO::FETCH_COLUMN);
 
 // Anos que servem de origem para copiar: os que têm evento global, menos este.
 $origens = $db->query(
@@ -123,12 +122,6 @@ head('Eventos globais', 'base');
 
     <div class="ms-auto text-muted small">
       <span class="badge bg-light text-secondary border"><?= $total ?> evento<?= $total === 1 ? '' : 's' ?> em <?= $ano ?></span>
-      <?php if ($anos): ?>
-        <span class="ms-2">outros anos:</span>
-        <?php foreach ($anos as $a): if ((int) $a === $ano) continue; ?>
-          <a class="ms-1" href="eventos.php?ano=<?= (int) $a ?>"><?= (int) $a ?></a>
-        <?php endforeach; ?>
-      <?php endif; ?>
     </div>
   </div>
 </div>

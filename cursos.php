@@ -9,17 +9,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id   = postInt('id');
 
     if ($acao === 'salvar') {
+        // O nível vem de um <select> montado dos cadastrados, mas um POST à
+        // mão mandaria qualquer coisa — e a chave gravada é o que liga o curso
+        // aos eventos por nível. O que não está na lista cai no primeiro.
+        $nivel = post('nivel');
+        if (!isset($niveis[$nivel])) {
+            $nivel = (string) array_key_first($niveis);
+        }
+
+        // Mesma peneira do nível, e aqui ela também protege o CHECK da coluna:
+        // um valor fora dos dois derrubaria o INSERT com erro do banco.
+        $regime = post('regime');
+        if (!isset(regimesCurso()[$regime])) {
+            $regime = (string) array_key_first(regimesCurso());
+        }
+
         $dados = [
             maiusculas(post('nome')),
-            post('nivel', (string) array_key_first($niveis)),
+            $nivel,
+            $regime,
             isset($_POST['ativo']) ? 1 : 0,
         ];
         if ($id) {
-            $st = $db->prepare('UPDATE cursos SET nome=?, nivel=?, ativo=? WHERE id=?');
+            $st = $db->prepare('UPDATE cursos SET nome=?, nivel=?, regime=?, ativo=? WHERE id=?');
             $st->execute([...$dados, $id]);
             flash('Curso atualizado.');
         } else {
-            $db->prepare('INSERT INTO cursos (nome, nivel, ativo) VALUES (?,?,?)')->execute($dados);
+            $db->prepare('INSERT INTO cursos (nome, nivel, regime, ativo) VALUES (?,?,?,?)')->execute($dados);
             flash('Curso cadastrado.');
         }
         redirect('cursos.php');
@@ -71,7 +87,7 @@ head('Cursos', 'cursos');
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
-          <tr><th>Nome</th><th>Nível</th><th class="text-center">Calendários</th><th class="text-end">Ações</th></tr>
+          <tr><th>Nome</th><th>Nível</th><th>Disciplinas</th><th class="text-center">Calendários</th><th class="text-end">Ações</th></tr>
         </thead>
         <tbody>
         <?php foreach ($cursos as $c): ?>
@@ -80,6 +96,7 @@ head('Cursos', 'cursos');
               <?= (int) $c['ativo'] === 0 ? '<span class="badge bg-light text-secondary border ms-1">inativo</span>' : '' ?>
             </td>
             <td><span class="badge bg-light text-secondary border"><?= e($niveis[$c['nivel']] ?? $c['nivel']) ?></span></td>
+            <td><span class="badge bg-light text-secondary border"><?= e(regimesCurso()[$c['regime']] ?? $c['regime']) ?></span></td>
             <td class="text-center"><?= (int) $c['n'] ?></td>
             <td class="text-end text-nowrap">
               <a class="btn btn-sm btn-outline-primary" href="cursos.php?editar=<?= $c['id'] ?>"><i class="bi bi-pencil me-1"></i>Editar</a>
@@ -119,13 +136,18 @@ head('Cursos', 'cursos');
               <label class="form-label">Nome do curso</label>
               <input name="nome" class="form-control" required value="<?= e($edit['nome'] ?? '') ?>"
                      placeholder="SUPERIOR EM ENGENHARIA AGRONÔMICA">
-              <div class="form-text">Entra no título como “CALENDÁRIO DO CURSO <em>nome</em> ANO”.</div>
+              <div class="form-text">
+                Entra no título junto do nível: “CALENDÁRIO DO CURSO <em>nível</em> EM
+                <em>nome</em> / <em>ano</em>”. Como o nível entra sozinho, o nome deve trazer
+                só o curso — <em>AGRICULTURA</em>, não <em>INTEGRADO EM AGRICULTURA</em>.
+                O modelo se ajusta em <a href="configuracoes.php">Configurações</a>.
+              </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-5">
               <label class="form-label">Nível</label>
               <select name="nivel" class="form-select">
                 <?php foreach ($niveis as $k => $v): ?>
-                  <option value="<?= $k ?>" <?= ($edit['nivel'] ?? '') === $k ? 'selected' : '' ?>><?= $v ?></option>
+                  <option value="<?= $k ?>" <?= ($edit['nivel'] ?? '') === $k ? 'selected' : '' ?>><?= e($v) ?></option>
                 <?php endforeach; ?>
               </select>
               <div class="form-text">
@@ -133,7 +155,19 @@ head('Cursos', 'cursos');
                 <a href="niveis.php">Níveis</a>.
               </div>
             </div>
-            <div class="col-md-6 d-flex align-items-center">
+            <div class="col-md-4">
+              <label class="form-label">Disciplinas</label>
+              <?php $regimeAtual = $edit['regime'] ?? array_key_first(regimesCurso()); ?>
+              <select name="regime" class="form-select">
+                <?php foreach (regimesCurso() as $k => $v): ?>
+                  <option value="<?= $k ?>" <?= $regimeAtual === $k ? 'selected' : '' ?>><?= e($v) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <div class="form-text">
+                Se as disciplinas do curso duram um semestre ou o ano inteiro.
+              </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-center">
               <div class="form-check mt-3">
                 <input class="form-check-input" type="checkbox" name="ativo" id="ativo"
                        <?= ($edit === null || (int) $edit['ativo'] === 1) ? 'checked' : '' ?>>

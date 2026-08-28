@@ -5,7 +5,7 @@ $db = db();
 $id = getInt('id') ?: postInt('cal_id', 0);
 
 $st = $db->prepare(
-    'SELECT c.*, cu.nome AS curso_nome
+    'SELECT c.*, cu.nome AS curso_nome, cu.regime AS curso_regime
      FROM calendarios c JOIN cursos cu ON cu.id = c.curso_id WHERE c.id = ?'
 );
 $st->execute([$id]);
@@ -17,19 +17,36 @@ if (!$cal) {
 $ano = (int) $cal['ano'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar_cal') {
-    [$semestres, $erro] = semestresDoFormulario();
+    [$bimestres, $erro] = bimestresDoFormulario((string) $cal['curso_regime']);
     if ($erro !== '') {
         flash($erro, 'erro');
         redirect('editar_calendario.php?id=' . $id);
     }
 
-    $db->prepare('UPDATE calendarios SET situacao=?, local_texto=?, meta_letivos_s1=?, meta_letivos_s2=?, observacoes=? WHERE id=?')
-       ->execute([post('situacao'), post('local_texto'), postInt('meta_letivos_s1', 100),
-                  postInt('meta_letivos_s2', 100), post('observacoes'), $id]);
+    $db->prepare('UPDATE calendarios SET situacao=?, local_texto=?, observacoes=? WHERE id=?')
+       ->execute([post('situacao'), post('local_texto'), post('observacoes'), $id]);
 
-    salvarSemestres($db, $id, $semestres);
+    salvarPeriodos($db, $id, $bimestres);
     flash('Calendário atualizado.');
-    redirect('editar_calendario.php?id=' . $id);
+    // Salvou, acabou o que se faz aqui: o passo seguinte é a grade, que é onde
+    // se vê o efeito das datas que acabaram de mudar. O caminho de erro acima
+    // continua voltando para esta tela, senão o formulário se perderia com o
+    // que foi digitado.
+    redirect('calendario.php?id=' . $id);
+}
+
+// Um calendário anterior aos bimestres tem só os dois semestres gravados. Em
+// vez de abrir a tela com oito campos vazios, o formulário sugere partir cada
+// semestre ao meio — o mesmo palpite da criação —, e quem edita ajusta.
+$bimestresSalvos = bimestresDoCalendario($db, $id);
+$valores = [];
+foreach ($bimestresSalvos as $n => [$inicio, $fim]) {
+    $valores["bim{$n}_inicio"] = $inicio;
+    $valores["bim{$n}_fim"]    = $fim;
+}
+$semBimestres = $bimestresSalvos === [];
+if ($semBimestres) {
+    $valores = bimestresSugeridos($db, $ano);
 }
 
 $semestres = [];
@@ -51,12 +68,18 @@ head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
   <a class="btn btn-sm btn-primary" href="gerar.php?id=<?= $id ?>" target="_blank"><i class="bi bi-printer me-1"></i>Gerar calendário</a>
 </div>
 
-<?php if (!$semestres): ?>
+<?php if ($semBimestres): ?>
   <div class="alert alert-warning d-flex" role="alert">
     <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
     <div>
-      Os semestres ainda não foram informados, então <strong>o ano inteiro está contando como letivo</strong> —
-      só feriados, férias e recessos tiram dias. Informe as datas abaixo para delimitar o período letivo.
+      <?php if ($semestres): ?>
+        Este calendário é de antes dos bimestres: tem os dois semestres, mas não os quatro
+        bimestres. As datas abaixo vêm <strong>sugeridas</strong>, partindo cada semestre ao meio —
+        confira e salve para o calendário passar a marcar sozinho o início e o fim de cada bimestre.
+      <?php else: ?>
+        Os períodos ainda não foram informados, então <strong>o ano inteiro está contando como letivo</strong> —
+        só feriados, férias e recessos tiram dias. Informe as datas abaixo para delimitar o período letivo.
+      <?php endif; ?>
     </div>
   </div>
 <?php endif; ?>
@@ -71,7 +94,7 @@ head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
       <input type="hidden" name="acao" value="salvar_cal">
       <input type="hidden" name="cal_id" value="<?= $id ?>">
       <div class="col-12">
-        <div class="alert alert-danger d-none mb-0 erro-semestres" role="alert"></div>
+        <div class="alert alert-danger d-none mb-0 erro-periodos" role="alert"></div>
       </div>
 
       <div class="col-md-4">
@@ -94,38 +117,7 @@ head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
         <input name="local_texto" class="form-control" value="<?= e($cal['local_texto']) ?>">
       </div>
 
-      <div class="col-12"><hr class="my-1"></div>
-      <div class="col-12">
-        <div class="form-text mt-0">
-          As quatro datas são obrigatórias: são elas que delimitam o período letivo do ano.
-        </div>
-      </div>
-
-      <div class="col-md-3">
-        <label class="form-label">1º semestre — início</label>
-        <input type="date" name="sem1_inicio" class="form-control" required value="<?= e($semestres[1]['inicio'] ?? '') ?>">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">1º semestre — fim</label>
-        <input type="date" name="sem1_fim" class="form-control" required value="<?= e($semestres[1]['fim'] ?? '') ?>">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">2º semestre — início</label>
-        <input type="date" name="sem2_inicio" class="form-control" required value="<?= e($semestres[2]['inicio'] ?? '') ?>">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">2º semestre — fim</label>
-        <input type="date" name="sem2_fim" class="form-control" required value="<?= e($semestres[2]['fim'] ?? '') ?>">
-      </div>
-
-      <div class="col-md-3">
-        <label class="form-label">Meta de dias letivos — 1º sem.</label>
-        <input type="number" name="meta_letivos_s1" class="form-control" value="<?= (int) $cal['meta_letivos_s1'] ?>">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Meta de dias letivos — 2º sem.</label>
-        <input type="number" name="meta_letivos_s2" class="form-control" value="<?= (int) $cal['meta_letivos_s2'] ?>">
-      </div>
+      <?php $regime = (string) $cal['curso_regime']; require __DIR__ . '/lib/campos_bimestres.php'; ?>
 
       <div class="col-12">
         <label class="form-label">Observações</label>
@@ -141,6 +133,6 @@ head($cal['curso_nome'] . ' · ' . $ano, 'calendarios');
   </div>
 </div>
 
-<?php require __DIR__ . '/lib/valida_semestres.php'; ?>
+<?php require __DIR__ . '/lib/valida_bimestres.php'; ?>
 
 <?php foot(); ?>

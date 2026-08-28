@@ -31,7 +31,7 @@ $cartoes = [
 ];
 
 // Ajuda: o que cada tela é e em que ordem se cadastra. Uma entrada por tela,
-// sem repetir destino — o que se faz dentro de um calendário (semestres, metas,
+// sem repetir destino — o que se faz dentro de um calendário (bimestres,
 // eventos do curso, geração) está dito na linha dele, não em passos à parte.
 $ajuda = [
     ['niveis.php',      'bi-diagram-3',    'text-primary',   'Níveis de ensino',
@@ -45,7 +45,7 @@ $ajuda = [
     ['eventos.php',     'bi-globe',        'text-info',      'Eventos globais',
         'Recessos, planejamento e prazos de um ano, valendo para todos os cursos.'],
     ['calendarios.php', 'bi-calendar3',    'text-warning',   'Calendários',
-        'Um por curso e ano. Dentro dele ficam os semestres, as metas, os eventos do curso e a geração do PDF.'],
+        'Um por curso e ano. Dentro dele ficam os bimestres, os eventos do curso e a geração do PDF.'],
     ['backup.php',      'bi-shield-check', 'text-dark',      'Backup',
         'Uma cópia do banco inteiro — vale baixar antes de homologar o ano.'],
 ];
@@ -103,7 +103,7 @@ head('Painel', 'painel');
                 <td><span class="badge bg-light text-secondary border"><?= e($c['situacao']) ?></span></td>
                 <td class="text-center"><?= (int) $c['n_eventos'] ?></td>
                 <td class="text-end text-nowrap">
-                  <a class="btn btn-sm btn-outline-secondary" href="editar_calendario.php?id=<?= $c['id'] ?>" title="Dados e semestres"><i class="bi bi-pencil"></i></a>
+                  <a class="btn btn-sm btn-outline-secondary" href="editar_calendario.php?id=<?= $c['id'] ?>" title="Dados e bimestres"><i class="bi bi-pencil"></i></a>
                   <a class="btn btn-sm btn-outline-primary" href="calendario.php?id=<?= $c['id'] ?>" title="Gerenciar eventos"><i class="bi bi-grid-3x3"></i></a>
                   <a class="btn btn-sm btn-outline-dark" href="gerar.php?id=<?= $c['id'] ?>" target="_blank" title="Gerar"><i class="bi bi-printer"></i></a>
                 </td>

@@ -33,13 +33,37 @@ function postInt(string $k, ?int $padrao = null): ?int
 }
 
 /**
+ * Preto ou branco, o que se lê melhor sobre a cor de fundo dada.
+ *
+ * A cor do texto das categorias de feriado não se escolhe em lugar nenhum: só
+ * o fundo vai para Configurações, e quem escolher um vermelho escuro não pode
+ * acabar com um número preto ilegível dentro do quadrado. A conta é a
+ * luminância relativa da sRGB, com o corte usual em 0,5.
+ */
+function corDeTexto(string $fundo): string
+{
+    [$r, $g, $b] = array_map(
+        static fn (string $par): float => (int) hexdec($par) / 255,
+        str_split(ltrim($fundo, '#'), 2)
+    );
+    $canal = static fn (float $c): float => $c <= 0.04045 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
+    $luz   = 0.2126 * $canal($r) + 0.7152 * $canal($g) + 0.0722 * $canal($b);
+    return $luz > 0.18 ? '#000000' : '#ffffff';
+}
+
+/**
  * Cor de um <input type="color">, que só manda #rrggbb — mas um POST à mão
  * poderia mandar qualquer coisa, e daqui ela sai direto para dentro de um
  * `style`. O que não casa com #rrggbb vira o padrão.
  */
 function postCor(string $k, string $padrao): string
 {
-    $v = post($k);
+    return corValida(post($k), $padrao);
+}
+
+/** A mesma peneira, para a cor que chega dentro de um campo em array. */
+function corValida(string $v, string $padrao): string
+{
     return preg_match('/^#[0-9a-fA-F]{6}$/', $v) === 1 ? strtolower($v) : $padrao;
 }
 
@@ -155,6 +179,18 @@ function niveisCurso(): array
 }
 
 /**
+ * Duração das disciplinas de um curso: chave gravada => rótulo mostrado.
+ *
+ * Fixa no código, e não em tabela: são os dois regimes que existem, e a coluna
+ * `cursos.regime` tem um CHECK com exatamente estes dois valores. O primeiro é
+ * o padrão de um curso novo e o que os cursos antigos herdam na migração.
+ */
+function regimesCurso(): array
+{
+    return ['semestral' => 'Semestral', 'anual' => 'Anual'];
+}
+
+/**
  * Chave a partir do nome: "Técnico Integrado" => "tecnico_integrado". É ela que
  * fica gravada nos cursos e nos eventos, então nasce uma vez e não muda mais.
  */
@@ -201,6 +237,17 @@ function niveisParaBanco(array $marcados): ?string
     $todos   = array_keys(niveisCurso());
     $validos = array_values(array_intersect($marcados, $todos));
     return (!$validos || count($validos) === count($todos)) ? null : implode(',', $validos);
+}
+
+/**
+ * Ano de uma tela que trabalha por ano. O <input type="number"> já limita a
+ * 2000–2100, mas a URL é digitável à mão: fora dessa faixa a grade sai de um
+ * ano que calendário nenhum vai ter, e a tela fica sem saída. Fora da faixa,
+ * vale o padrão.
+ */
+function anoDaTela(int $bruto, int $padrao): int
+{
+    return ($bruto >= 2000 && $bruto <= 2100) ? $bruto : $padrao;
 }
 
 function dataBr(?string $iso): string
@@ -287,6 +334,150 @@ function faixasParaTexto(array $faixas): string
             : dataBr($f['inicio']) . ' a ' . dataBr($f['fim']);
     }
     return implode("\n", $l);
+}
+
+/**
+ * Como o bimestre se chama na tela e no papel.
+ *
+ * O número gravado vai sempre de 1 a 4, na ordem do ano — é o que permite
+ * trocar o regime de um curso sem remexer no que já está no banco. O rótulo é
+ * que muda: no curso anual os quatro correm de 1 a 4; no semestral cada
+ * semestre tem o seu 1º e o seu 2º.
+ */
+function rotuloBimestre(int $numero, string $regime): int
+{
+    return $regime === 'anual' ? $numero : (($numero - 1) % 2) + 1;
+}
+
+/** Em que semestre cai o bimestre de número 1..4. */
+function semestreDoBimestre(int $numero): int
+{
+    return $numero <= 2 ? 1 : 2;
+}
+
+/** O regime do curso, com o padrão de sempre se o curso sumiu. */
+function regimeDoCurso(PDO $db, int $cursoId): string
+{
+    $st = $db->prepare('SELECT regime FROM cursos WHERE id = ?');
+    $st->execute([$cursoId]);
+    $r = (string) ($st->fetchColumn() ?: '');
+    return isset(regimesCurso()[$r]) ? $r : (string) array_key_first(regimesCurso());
+}
+
+/**
+ * Os oito rótulos dos campos de data, para um regime. No curso anual os
+ * bimestres correm de 1 a 4 e o semestre não precisa ser dito; no semestral o
+ * "2º bimestre" acontece duas vezes no ano, então o semestre entra no rótulo
+ * para o campo não ficar ambíguo.
+ */
+function rotulosBimestre(string $regime): array
+{
+    $out = [];
+    foreach ([1, 2, 3, 4] as $n) {
+        $base = rotuloBimestreCompleto($n, $regime);
+        $out["bim{$n}_inicio"] = $base . ' — início';
+        $out["bim{$n}_fim"]    = $base . ' — fim';
+    }
+    return $out;
+}
+
+/**
+ * Como o bimestre se apresenta sozinho: "3º bimestre" num curso anual,
+ * "2º sem. · 1º bim." num semestral, onde o número se repete e o semestre
+ * precisa vir junto para não ficar ambíguo.
+ */
+function rotuloBimestreCompleto(int $numero, string $regime): string
+{
+    return $regime === 'anual'
+        ? rotuloBimestre($numero, $regime) . 'º bimestre'
+        : semestreDoBimestre($numero) . 'º sem. · ' . rotuloBimestre($numero, $regime) . 'º bim.';
+}
+
+/**
+ * Os dois semestres, deduzidos dos bimestres: o 1º vai do início do 1º
+ * bimestre ao fim do 2º, e o 2º do início do 3º ao fim do 4º. O intervalo entre
+ * o 2º e o 3º é o recesso do meio do ano, que fica fora de ambos — e por isso
+ * não conta dia letivo, que é como a regra sempre funcionou.
+ *
+ * @param array<int, array{0: string, 1: string}> $bimestres
+ */
+function semestresDosBimestres(array $bimestres): array
+{
+    return [
+        1 => [$bimestres[1][0], $bimestres[2][1]],
+        2 => [$bimestres[3][0], $bimestres[4][1]],
+    ];
+}
+
+/**
+ * Bimestres que vieram do formulário, prontos para gravar. São quatro, oito
+ * datas, todas obrigatórias: são elas que delimitam o período letivo do ano, e
+ * os dois semestres saem delas.
+ *
+ * Devolve [bimestres, erro]: com erro preenchido, nada deve ser gravado.
+ *
+ * @return array{0: array<int, array{0: string, 1: string}>, 1: string}
+ */
+function bimestresDoFormulario(string $regime): array
+{
+    $bimestres = [];
+    $anterior  = null;
+
+    foreach ([1, 2, 3, 4] as $n) {
+        $inicio = post("bim{$n}_inicio");
+        $fim    = post("bim{$n}_fim");
+        $rot    = rotuloBimestre($n, $regime) . 'º bimestre'
+                . ($regime === 'anual' ? '' : ' do ' . semestreDoBimestre($n) . 'º semestre');
+
+        if ($inicio === '' || $fim === '') {
+            return [[], 'Informe as datas de início e fim dos quatro bimestres.'];
+        }
+        if ($fim < $inicio) {
+            return [[], "No {$rot}, o fim está antes do início."];
+        }
+        if ($anterior !== null && $inicio <= $anterior) {
+            return [[], "O {$rot} começa antes de o anterior terminar."];
+        }
+        $anterior      = $fim;
+        $bimestres[$n] = [$inicio, $fim];
+    }
+    return [$bimestres, ''];
+}
+
+/**
+ * Grava os quatro bimestres e os dois semestres que saem deles. Troca tudo de
+ * uma vez: `periodos` não tem filho, então apagar e reinserir é mais simples e
+ * mais seguro do que casar linha a linha.
+ *
+ * @param array<int, array{0: string, 1: string}> $bimestres
+ */
+function salvarPeriodos(PDO $db, int $calendarioId, array $bimestres): void
+{
+    $db->prepare('DELETE FROM periodos WHERE calendario_id = ?')->execute([$calendarioId]);
+    $ins = $db->prepare('INSERT INTO periodos (calendario_id, tipo, numero, inicio, fim) VALUES (?,?,?,?,?)');
+
+    foreach ($bimestres as $n => [$inicio, $fim]) {
+        $ins->execute([$calendarioId, 'bimestre', $n, $inicio, $fim]);
+    }
+    foreach (semestresDosBimestres($bimestres) as $n => [$inicio, $fim]) {
+        $ins->execute([$calendarioId, 'semestre', $n, $inicio, $fim]);
+    }
+}
+
+/**
+ * Os bimestres gravados de um calendário, como o formulário os mostra.
+ * @return array<int, array{0: string, 1: string}>
+ */
+function bimestresDoCalendario(PDO $db, int $calendarioId): array
+{
+    $st = $db->prepare("SELECT numero, inicio, fim FROM periodos
+                         WHERE calendario_id = ? AND tipo = 'bimestre' ORDER BY numero");
+    $st->execute([$calendarioId]);
+    $out = [];
+    foreach ($st as $p) {
+        $out[(int) $p['numero']] = [$p['inicio'], $p['fim']];
+    }
+    return $out;
 }
 
 /**

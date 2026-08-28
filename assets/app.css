@@ -240,6 +240,103 @@ table.mes-grade td {
 .legenda-grade .amostra { width: 18px; height: 11px; }
 
 /* Lista de eventos embaixo de cada mês, como na impressão — mas clicável. */
+/* Faixa de contadores do topo do calendário: os dois semestres, os quatro
+   bimestres e o total de eventos, tudo numa linha só. Cada semestre vem antes
+   dos seus dois bimestres, e o traço mais forte separa um grupo do outro. */
+.faixa-contadores {
+  display: flex; flex-wrap: wrap;
+  padding: .35rem 0;
+}
+.faixa-contadores .contador {
+  flex: 1 1 0; min-width: 96px;
+  padding: .5rem .75rem;
+  text-align: center;
+  border-left: 1px solid #e9edf3;
+}
+.faixa-contadores .contador:first-child { border-left: 0; }
+.faixa-contadores .contador.grupo { border-left: 2px solid #cbd5e1; }
+.faixa-contadores .numero {
+  display: block;
+  font-size: 1.6rem; font-weight: 700; line-height: 1.05;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+.faixa-contadores .rotulo {
+  display: block; margin-top: 2px;
+  font-size: .7rem; color: #94a3b8; white-space: nowrap;
+}
+/* O semestre é o número que se confere primeiro; os bimestres detalham. */
+.faixa-contadores .contador.semestre .numero { color: #1d4ed8; }
+.faixa-contadores .contador.semestre .rotulo { color: #64748b; font-weight: 600; }
+
+/* Estreito: três por linha, que é o que mantém cada semestre junto dos seus
+   dois bimestres — quebrar de dois em dois misturaria os grupos. */
+@media (max-width: 767.98px) {
+  .faixa-contadores .contador {
+    flex: 0 0 33.333%; min-width: 0;
+    padding: .45rem .25rem;
+    border-left: 0;
+  }
+  .faixa-contadores .contador.grupo { border-left: 0; }
+  .faixa-contadores .numero { font-size: 1.3rem; }
+  .faixa-contadores .rotulo { font-size: .65rem; }
+}
+
+/* Dias do evento sob o cursor: uma lâmina translúcida por cima da célula.
+   Contorno não servia — a célula já ganha um outline azul no hover dela mesma,
+   e o realce saía idêntico ao passar o mouse em qualquer dia.
+   Uma lâmina clara também não servia: sobre um feriado vermelho ela quase não
+   aparecia e ainda derrubava o contraste do número de 5,2 para 3,8. A lâmina é
+   escura e opaca o bastante para o número sair em branco e negrito por cima
+   dela — e aí o realce vale igual sobre qualquer cor de categoria, do branco
+   do dia útil ao vermelho do feriado.
+   O z-index negativo põe a lâmina acima do fundo da célula e abaixo do número;
+   sem ele o pseudo-elemento cobriria o próprio texto que se quer destacar.
+   Vai no ::before porque o ::after é o pontinho de "tem evento", e
+   pointer-events: none para não engolir o clique que abre o dia. */
+.grade-anual .dia.realce {
+  z-index: 2;
+  /* A cor do número vem de um style inline, da categoria do dia: só !important
+     alcança. É o realce que manda enquanto o mouse está na linha da lista. */
+  color: #fff !important;
+  font-weight: 700;
+}
+.grade-anual .dia.realce::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(30, 58, 138, .82);
+  pointer-events: none;
+}
+
+/* Seletor de categoria do formulário de evento. É um dropdown próprio, e não
+   um <select>, porque a cor de fundo de uma <option> é só sugestão: o Firefox
+   no Linux a ignora, e a lista saía sem cor nenhuma. Cada linha aqui é HTML,
+   então o retângulo aparece igual em todo navegador. */
+.seletor-categoria .form-select { display: flex; align-items: center; gap: .5rem; }
+.seletor-categoria .rotulo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seletor-categoria .dropdown-item {
+  display: flex; align-items: center; gap: .5rem;
+  white-space: normal;
+}
+.seletor-categoria .dropdown-menu { max-height: 15rem; overflow-y: auto; }
+
+.retangulo-cor {
+  flex: none;
+  width: 26px; height: 15px;
+  border: 1px solid #94a3b8; border-radius: 3px;
+}
+/* "sem cor" não é uma cor: o xadrez diz isso sem inventar um cinza, que
+   pareceria mais uma categoria da lista. */
+.retangulo-cor.sem-cor {
+  background: repeating-linear-gradient(45deg, #e2e8f0 0 5px, #f8fafc 5px 10px);
+}
+
+/* No resumo, o bimestre é o detalhe do semestre logo acima: fundo levemente
+   recuado e sem a divisória de cima, para os dois lerem como um bloco só. */
+.linha-bimestre > td { border-top: 0; background: #fbfcfe; font-size: .92em; }
+
 .eventos-mes { list-style: none; margin: 0; padding: 0; }
 .eventos-mes li {
   display: flex; align-items: flex-start; gap: 5px;
@@ -248,18 +345,34 @@ table.mes-grade td {
   font-size: 0.7rem; line-height: 1.3;
 }
 .eventos-mes li:hover { background: #f8faff; }
-.eventos-mes a { flex: 1; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.eventos-mes a,
+.eventos-mes .so-leitura { flex: 1; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
 .eventos-mes a:hover { color: #2563eb; }
-.eventos-mes a.negrito { font-weight: 700; }
+.eventos-mes a.negrito,
+.eventos-mes .so-leitura.negrito { font-weight: 700; }
+/* Feriado fora da tela de Feriados: está ali para conferir, não para clicar. */
+.eventos-mes .so-leitura { color: #64748b; cursor: default; }
 .eventos-mes .chip {
   flex: none; width: 9px; height: 9px; margin-top: 3px;
   border: 1px solid #94a3b8; border-radius: 2px;
 }
-.eventos-mes .marca {
-  display: inline-block; margin-left: 4px; padding: 0 4px;
+/* Etiqueta de origem do item, na lista do mês e no modal do dia. A cor diz de
+   onde ele vem sem precisar ler: vermelho é feriado (cadastro, vale para todo
+   ano), verde é global (todos os calendários do ano) e azul é local (só deste
+   calendário). Tons bem claros de propósito — a etiqueta acompanha o texto do
+   evento, não disputa com ele nem com a cor da categoria ao lado. O cinza
+   continua para o que não é origem, como "automático" e os níveis de ensino. */
+.marca {
+  display: inline-block; margin-left: 4px; padding: 0 5px;
   border: 1px solid #e2e8f0; border-radius: 8px;
   background: #f1f5f9; color: #64748b; font-size: 0.6rem; vertical-align: middle;
 }
+.marca.feriado { background: #fdecec; border-color: #f4c9c9; color: #a13a3a; }
+.marca.global  { background: #e8f6ed; border-color: #bfe0cb; color: #2c7048; }
+.marca.local   { background: #e9f1fd; border-color: #c4d8f4; color: #2a5a9e; }
+
+/* No modal do dia a linha é maior, então a etiqueta acompanha. */
+.list-group-item .marca { font-size: 0.68rem; margin-left: 2px; }
 .eventos-mes form { display: inline; }
 .eventos-mes .apagar {
   border: 0; background: none; padding: 0 1px;

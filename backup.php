@@ -52,6 +52,27 @@ function snapshot(string $origem, string $destino): bool
     return is_file($destino) && filesize($destino) > 0;
 }
 
+/**
+ * Caminho ainda livre para uma cópia nova. O nome leva a data até o segundo, e
+ * dois cliques dentro do mesmo segundo cairiam no mesmo arquivo: o VACUUM INTO
+ * recusa destino que já existe, e a limpeza do erro apagaria a cópia que o
+ * primeiro clique acabou de gravar — o usuário levava o download e ficava sem
+ * nada em backups/. O sufixo tira essa coincidência do caminho.
+ */
+function caminhoLivre(string $prefixo): string
+{
+    $base = dirBackups() . '/' . $prefixo . date('Ymd_His');
+    if (!is_file($base . '.sqlite')) {
+        return $base . '.sqlite';
+    }
+    for ($n = 2; $n <= 99; $n++) {
+        if (!is_file("{$base}_{$n}.sqlite")) {
+            return "{$base}_{$n}.sqlite";
+        }
+    }
+    return $base . '_' . bin2hex(random_bytes(4)) . '.sqlite';
+}
+
 /** Confere se o arquivo enviado é mesmo um banco desta aplicação. */
 function bancoValido(string $caminho): bool
 {
@@ -69,8 +90,14 @@ function bancoValido(string $caminho): bool
 }
 
 // ── Exportar: gera o snapshot, guarda em backups/ e manda baixar ────────────
-if (get('acao') === 'exportar') {
-    $arquivo = dirBackups() . '/calendario_backup_' . date('Ymd_His') . '.sqlite';
+// Por POST, e não por link: a exportação grava um arquivo em backups/, e um
+// GET desses qualquer página aberta em outra aba dispara — ela não lê a
+// resposta, mas enche a pasta assim mesmo. Sendo POST, o token conferido em
+// lib/boot.php vale também para cá.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'exportar') {
+    // O arquivo não existia um instante atrás, então o unlink de baixo só
+    // alcança o que este pedido criou.
+    $arquivo = caminhoLivre('calendario_backup_');
     if (!snapshot(DB_PATH, $arquivo)) {
         @unlink($arquivo);
         flash('Falha ao gerar o backup do banco.', 'erro');
@@ -103,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'importar') {
     }
 
     // Rede de segurança: o estado atual vira um backup antes de ser sobrescrito.
-    $seguranca = dirBackups() . '/pre_import_' . date('Ymd_His') . '.sqlite';
+    $seguranca = caminhoLivre('pre_import_');
     snapshot(DB_PATH, $seguranca);
 
     if (!copy($up['tmp_name'], DB_PATH)) {
@@ -142,9 +169,13 @@ head('Backup', 'backup');
           Gera uma cópia consistente do banco (estrutura e dados), guarda em
           <code>backups/</code> e baixa o arquivo <code>.sqlite</code>.
         </p>
-        <a href="backup.php?acao=exportar" class="btn btn-primary mt-auto">
-          <i class="bi bi-download me-1"></i>Baixar backup agora
-        </a>
+        <form method="post" class="mt-auto">
+          <?= csrfCampo() ?>
+          <input type="hidden" name="acao" value="exportar">
+          <button class="btn btn-primary w-100">
+            <i class="bi bi-download me-1"></i>Baixar backup agora
+          </button>
+        </form>
       </div>
     </div>
   </div>

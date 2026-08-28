@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS cursos (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
     nome   TEXT NOT NULL,                       -- ex.: SUPERIOR EM ENGENHARIA AGRONÔMICA
     nivel  TEXT NOT NULL DEFAULT 'superior',    -- chave de um nível (tabela niveis)
-    ativo  INTEGER NOT NULL DEFAULT 1
+    regime TEXT NOT NULL DEFAULT 'semestral',   -- anual | semestral: duração das disciplinas
+    ativo  INTEGER NOT NULL DEFAULT 1,
+    CHECK (regime IN ('anual','semestral'))
 );
 
 -- Categorias = a legenda do calendário. Definem a cor do dia na grade.
@@ -65,8 +67,6 @@ CREATE TABLE IF NOT EXISTS calendarios (
     ano             INTEGER NOT NULL,
     situacao        TEXT NOT NULL DEFAULT 'Aguardando homologação',
     local_texto     TEXT NOT NULL DEFAULT '',   -- ex.: Lagoa da Confusão, outubro de 2025
-    meta_letivos_s1 INTEGER NOT NULL DEFAULT 100,
-    meta_letivos_s2 INTEGER NOT NULL DEFAULT 100,
     observacoes     TEXT NOT NULL DEFAULT '',
     criado_em       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
     UNIQUE (curso_id, ano)
