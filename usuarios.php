@@ -38,8 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // O nome na barra de cima vem da sessão, não do banco: sem isto,
                 // quem se renomeia continua vendo o nome antigo até sair.
                 if ($id === $eu) {
-                    $st = $db->prepare('SELECT * FROM usuarios WHERE id = ?');
-                    $st->execute([$id]);
                     $_SESSION['usuario'] = [
                         'id' => $id, 'nome' => $nome, 'usuario' => $usuario,
                     ];

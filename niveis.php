@@ -8,10 +8,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id   = postInt('id');
 
     if ($acao === 'salvar') {
+        // O erro reabre o formulário no nível que se editava. Mandar tudo para
+        // ?novo=1 fazia a edição voltar como cadastro novo, com o que estava
+        // digitado perdido.
+        $volta = 'niveis.php' . ($id ? '?editar=' . $id : '?novo=1');
+
         $nome = post('nome');
         if ($nome === '') {
             flash('Informe o nome do nível.', 'erro');
-            redirect('niveis.php?novo=1');
+            redirect($volta);
         }
 
         if ($id) {
@@ -23,13 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $chave = chaveNivel($nome);
             if ($chave === '') {
                 flash('O nome precisa ter ao menos uma letra ou número.', 'erro');
-                redirect('niveis.php?novo=1');
+                redirect($volta);
             }
             $st = $db->prepare('SELECT COUNT(*) FROM niveis WHERE chave = ?');
             $st->execute([$chave]);
             if ((int) $st->fetchColumn() > 0) {
                 flash('Já existe um nível com esse nome.', 'erro');
-                redirect('niveis.php?novo=1');
+                redirect($volta);
             }
             $db->prepare('INSERT INTO niveis (chave, nome) VALUES (?,?)')->execute([$chave, $nome]);
             flash('Nível cadastrado.');
@@ -99,6 +104,9 @@ foreach ($niveis as &$n) {
 unset($n);
 
 $abrirModal = $edit !== null || get('novo') !== '';
+// Com o modal reabrindo, o erro vai para dentro dele; o head() imprime o que
+// sobrar, que é o caso de um "Nível excluído.".
+$erroModal  = modalAbrindo() ? erroParaModal() : '';
 
 head('Níveis', 'niveis');
 ?>
@@ -186,6 +194,9 @@ head('Níveis', 'niveis');
         <div class="modal-body">
           <input type="hidden" name="acao" value="salvar">
           <input type="hidden" name="id" value="<?= (int) ($edit['id'] ?? 0) ?>">
+          <?php if ($abrirModal && $erroModal !== ''): ?>
+            <div class="alert alert-danger" role="alert"><?= e($erroModal) ?></div>
+          <?php endif; ?>
           <div class="row g-3">
             <div class="col-12">
               <label class="form-label">Nome</label>

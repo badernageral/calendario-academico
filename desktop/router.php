@@ -4,7 +4,9 @@
  *
  * O sistema não tem front controller: cada tela é um arquivo .php na raiz. O
  * papel daqui é servir o que existe, mandar "/" para o painel e negar o que os
- * .htaccess negam no Apache — o banco, os backups e a pasta lib/.
+ * .htaccess negam no Apache — o banco, os backups, lib/, ferramentas/ e testes/.
+ * A lista tem de acompanhar os .htaccess: quem estiver com o .htaccess e sem a
+ * entrada aqui fica aberto no modo desktop, e vice-versa.
  *
  * Uso: php -S 127.0.0.1:<porta> -t <raiz-da-app> desktop/router.php
  */
@@ -12,7 +14,7 @@ $raiz = $_SERVER['DOCUMENT_ROOT'] ?: dirname(__DIR__);
 $uri  = urldecode((string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
 
 // O que o Apache bloqueia por .htaccess.
-if (preg_match('#^/(data|backups|lib|ferramentas)(/|$)#', $uri)
+if (preg_match('#^/(data|backups|lib|ferramentas|testes)(/|$)#', $uri)
  || preg_match('#\.(sqlite|sqlite-wal|sqlite-shm|sql|py)$#i', $uri)) {
     http_response_code(403);
     echo 'Acesso negado.';

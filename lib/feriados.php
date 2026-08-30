@@ -112,14 +112,18 @@ function semestresSugeridos(PDO $db, int $ano): array
 function ehDiaUtil(PDO $db, int $ano): Closure
 {
     static $cache = [];
-    if (!isset($cache[$ano])) {
+    // A chave leva a conexão junto do ano: num pedido web há um banco só, mas a
+    // suíte troca de banco várias vezes dentro do mesmo processo, e por ano só o
+    // segundo banco responderia com os feriados do primeiro.
+    $chave = spl_object_id($db) . ':' . $ano;
+    if (!isset($cache[$chave])) {
         $f = [];
         foreach (feriadosDoAno($db, $ano) as $x) {
             $f[$x['data']] = true;
         }
-        $cache[$ano] = $f;
+        $cache[$chave] = $f;
     }
-    $feriados = $cache[$ano];
+    $feriados = $cache[$chave];
     return static function (DateTimeImmutable $d) use ($feriados): bool {
         $dow = (int) $d->format('w');
         return $dow !== 0 && $dow !== 6 && !isset($feriados[$d->format('Y-m-d')]);

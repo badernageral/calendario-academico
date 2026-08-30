@@ -4,9 +4,9 @@ declare(strict_types=1);
 /**
  * Autenticação por sessão, com perfil único: quem entra faz tudo.
  *
- * Não há papel de leitura porque o calendário pronto sai por gerar.php, que é a
- * via de quem só quer ver — o resto da aplicação é edição, e quem edita precisa
- * de senha.
+ * Não há papel de leitura, e gerar.php não é exceção: ele carrega o mesmo
+ * lib/boot.php que as outras telas, então nem o calendário pronto se alcança sem
+ * sessão. Quem só quer ver recebe o PDF impresso, não o endereço.
  *
  * O portão fica em lib/boot.php, que toda tela carrega antes de qualquer coisa.
  */
@@ -75,10 +75,43 @@ function autenticar(PDO $db, string $usuario, string $senha): ?array
     $st->execute([$usuario]);
     $u = $st->fetch();
 
-    $hash = $u ? (string) $u['senha_hash'] : '$2y$12$........................................................';
+    $hash = $u ? (string) $u['senha_hash'] : hashDeMentira($db);
     $ok   = password_verify($senha, $hash);
 
     return ($u && $ok && (int) $u['ativo'] === 1) ? $u : null;
+}
+
+/**
+ * O hash contra o qual se confere a senha de um login que não existe. Ele só
+ * serve para gastar o mesmo tempo que um hash de verdade gastaria — nenhuma
+ * senha casa com ele.
+ *
+ * O custo sai do prefixo (`$2y$NN$`) de um hash que está mesmo no banco, e não
+ * de um número escrito aqui. Escrito à mão ele envelhece: o custo padrão do
+ * password_hash() subiu de 10 para 12 no PHP 8.4, e um dummy fixo em 12 sobre um
+ * banco gravado no 8.3 respondia em ~134 ms para o login inexistente contra
+ * ~33 ms para o que existe — quatro vezes mais lento, justamente a diferença que
+ * este hash existe para apagar. E o desnível não some com a atualização do PHP:
+ * o hash gravado guarda o custo da época para sempre.
+ *
+ * Sem usuário nenhum não há login a proteger — a tela é a do primeiro acesso —,
+ * e aí vale o padrão de hoje.
+ *
+ * Sem cache de propósito: é a leitura de uma linha, ruído perto dos 30 a 130 ms
+ * do password_verify que vem logo em seguida, e um valor guardado entre bancos
+ * diferentes responderia pelo custo do banco errado.
+ */
+function hashDeMentira(PDO $db): string
+{
+    $qualquer = (string) ($db->query('SELECT senha_hash FROM usuarios LIMIT 1')->fetchColumn() ?: '');
+    $prefixo  = preg_match('/^(\$2[aby]\$\d{2}\$)/', $qualquer, $m) === 1
+        ? $m[1]
+        : substr((string) password_hash('', PASSWORD_DEFAULT), 0, 7);
+
+    // 53 caracteres depois do prefixo é o tamanho de um bcrypt: 22 de sal e 31
+    // de digest. O ponto está no alfabeto do sal, então o hash é bem-formado e o
+    // password_verify faz a conta inteira em vez de recusar de saída.
+    return $prefixo . str_repeat('.', 53);
 }
 
 /** Cadastra um usuário e devolve a linha criada. */

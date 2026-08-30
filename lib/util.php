@@ -120,9 +120,10 @@ function csrfCampo(): string
 }
 
 /**
- * Confere o token antes de a tela olhar para o POST. Como o sistema não tem
- * login, é isto que impede outra página aberta no mesmo navegador de disparar
- * uma exclusão ou uma importação de backup aqui dentro.
+ * Confere o token antes de a tela olhar para o POST. É o que impede outra página
+ * aberta no mesmo navegador de disparar uma exclusão ou uma importação de backup
+ * aqui dentro, aproveitando a sessão de quem já entrou — o portão de entrada
+ * barra quem não entrou, este token barra o pedido forjado de quem entrou.
  *
  * Não devolve nada: ou o pedido é legítimo, ou a requisição para aqui. Quem
  * chama é o boot, uma vez, para nenhuma tela poder esquecer.
@@ -190,7 +191,11 @@ function flash(?string $msg = null, string $tipo = 'ok'): ?array
  */
 function modalAbrindo(): bool
 {
-    foreach (['editar_cal', 'editar_feriado', 'editar_evento', 'nova_data', 'novo', 'novo_feriado'] as $chave) {
+    // 'editar' é a chave das telas de cadastro simples — usuários, níveis,
+    // legenda —, que editam pelo id na URL. Sem ela aqui, o erro dessas telas
+    // ficava na sessão até o head() imprimi-lo no topo da página, atrás do modal
+    // que acabara de reabrir: o formulário voltava sem dizer o que impediu.
+    foreach (['editar', 'editar_cal', 'editar_feriado', 'editar_evento', 'nova_data', 'novo', 'novo_feriado'] as $chave) {
         if (get($chave) !== '') {
             return true;
         }

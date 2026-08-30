@@ -79,23 +79,24 @@ O esperado é `403`. Se vier `200`, o banco inteiro está aberto: ajuste o
 
 ### Quem pode usar
 
-**O sistema não tem login: quem alcança a URL faz tudo.** Cadastra, altera,
-exclui, baixa o banco inteiro pela tela de Backup e, pela mesma tela, substitui
-todos os dados por um arquivo enviado. É uma decisão de escopo — um campus, um
-punhado de pessoas montando o calendário do ano —, não um esquecimento; mas ela
-transfere a segurança inteira para a rede.
+**Ninguém alcança tela nenhuma sem entrar.** O portão fica em `lib/boot.php` e
+vale para o sistema inteiro, `gerar.php` inclusive: quem não tem sessão aberta é
+mandado para o login, e quem entra faz tudo — cadastra, altera, exclui, baixa o
+banco inteiro pela tela de Backup e, pela mesma tela, substitui todos os dados
+por um arquivo enviado. O perfil é único, e está detalhado em [Acesso](#acesso).
 
-Então o Apache **não pode estar exposto à internet**. Sirva o sistema só na rede
-interna, ou ponha algo na frente: um `Require ip` no virtual host, uma
+Que haja login não faz do sistema uma coisa para pôr na internet. Ele não tem
+freio de tentativa de senha nem registro de quem entrou, e o escopo é um campus
+com um punhado de pessoas montando o calendário do ano. Então sirva o Apache só
+na rede interna, ou ponha algo na frente: um `Require ip` no virtual host, uma
 autenticação básica do próprio Apache (`AuthType Basic`), ou uma VPN. No modo
 desktop nada disso se aplica — ali o PHP escuta em `127.0.0.1` e só a máquina
 local alcança.
 
-O que o sistema faz por conta própria é impedir que **outra** página aberta no
-mesmo navegador dispare uma ação aqui dentro: todo formulário leva um token de
-sessão, conferido em `lib/boot.php` antes de qualquer tela olhar para o POST.
-Isso protege contra o pedido forjado de fora, não contra quem simplesmente abre
-a URL — para esse, a barreira é a rede.
+Além do portão, todo formulário leva um token de sessão, conferido em
+`lib/boot.php` antes de qualquer tela olhar para o POST. É o que impede que
+**outra** página aberta no mesmo navegador dispare uma exclusão ou uma
+importação de backup aqui dentro, aproveitando a sessão de quem já entrou.
 
 ### Extensões do PHP
 
@@ -433,8 +434,10 @@ qualquer endereço leva a `setup.php`, que cria o **primeiro usuário** e já en
 com ele; feito isso, essa tela some. Depois é `login.php` para quem ainda não
 entrou, e o botão de sair fica na barra de cima, ao lado do nome.
 
-Perfil único: quem tem senha faz tudo. Não há papel de leitura porque o
-calendário pronto sai por `gerar.php`, que é a via de quem só quer ver.
+Perfil único: quem tem senha faz tudo. Não há papel de leitura, e `gerar.php`
+não é exceção — ele carrega o mesmo `boot.php` que as outras telas, então
+publicar um calendário para quem não tem conta é imprimir o PDF e distribuí-lo,
+não passar o endereço.
 
 O portão fica em `lib/boot.php`, junto da conferência do token — no mesmo lugar
 e pelo mesmo motivo: uma tela nova nasce protegida sem ninguém lembrar de

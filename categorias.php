@@ -99,6 +99,9 @@ $cats = $db->query('SELECT * FROM categorias WHERE protegida = 0 ORDER BY priori
 
 // O modal já vem aberto quando a página é de edição ou veio do botão "nova".
 $abrirModal = $edit !== null || get('novo') !== '';
+// Com o modal reabrindo, o erro vai para dentro dele; o head() imprime o que
+// sobrar, que é o caso de um "Categoria excluída.".
+$erroModal  = modalAbrindo() ? erroParaModal() : '';
 
 head('Legenda', 'categorias');
 ?>
@@ -168,6 +171,9 @@ head('Legenda', 'categorias');
         <div class="modal-body">
           <input type="hidden" name="acao" value="salvar">
           <input type="hidden" name="id" value="<?= (int) ($edit['id'] ?? 0) ?>">
+          <?php if ($abrirModal && $erroModal !== ''): ?>
+            <div class="alert alert-danger" role="alert"><?= e($erroModal) ?></div>
+          <?php endif; ?>
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Nome</label>

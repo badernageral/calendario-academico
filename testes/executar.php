@@ -661,6 +661,37 @@ confere('uma senha curta serve como qualquer outra', (function () use ($db) {
     return $r;
 })(), 'curta');
 
+// O hash contra o qual se confere um login que não existe tem de custar o mesmo
+// que os hashes que estão mesmo no banco. Escrito à mão ele envelhece: o custo
+// padrão do password_hash() subiu de 10 para 12 no PHP 8.4, e um dummy fixo em
+// 12 sobre um banco gravado no 8.3 respondia quatro vezes mais devagar para o
+// login inexistente — dizendo, pelo relógio, quais logins são válidos.
+$custoDe = static fn (string $h): string => substr($h, 0, 7);
+confere('o hash de mentira acompanha o custo do banco', (function () use ($db, $custoDe) {
+    $db->exec('DELETE FROM usuarios');
+    $out = [];
+    foreach ([10, 12] as $custo) {
+        $db->prepare('INSERT INTO usuarios (nome, usuario, senha_hash) VALUES (?,?,?)')
+           ->execute(['A', 'a', password_hash('x', PASSWORD_BCRYPT, ['cost' => $custo])]);
+        $out[] = $custoDe(hashDeMentira($db));
+        $db->exec('DELETE FROM usuarios');
+    }
+    return $out;
+})(), ['$2y$10$', '$2y$12$']);
+// Bem-formado, senão o password_verify recusa de saída e não gasta tempo nenhum
+// — que é justamente o que este hash existe para gastar.
+confere('e é um bcrypt que o password_verify percorre inteiro', (function () use ($db) {
+    $db->prepare('INSERT INTO usuarios (nome, usuario, senha_hash) VALUES (?,?,?)')
+       ->execute(['A', 'a', password_hash('x', PASSWORD_BCRYPT, ['cost' => 4])]);
+    $h = hashDeMentira($db);
+    $db->exec('DELETE FROM usuarios');
+    return [strlen($h), password_get_info($h)['algoName'], password_verify('x', $h)];
+})(), [60, 'bcrypt', false]);
+
+// O usuário das contagens abaixo volta ao banco: os testes de cima o esvaziaram
+// para falar de custo de hash. O segundo é criado pela própria contagem.
+$novo = criarUsuario($db, 'José', 'jose', 'senha12345');
+
 // Trancar o sistema por fora é o único estrago que esta tela pode fazer: é o
 // que a contagem de outros ativos existe para impedir.
 confere('com um usuário só, não há outro ativo para segurar a porta',

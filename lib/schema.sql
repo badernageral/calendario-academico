@@ -70,9 +70,9 @@ CREATE TABLE IF NOT EXISTS calendarios (
     UNIQUE (curso_id, ano)
 );
 
--- Quem entra no sistema. Perfil único: quem tem senha faz tudo — não há papel
--- de leitura, e o calendário publicado sai por gerar.php, que é a via de quem
--- só quer ver. A senha nunca é guardada, só o hash que password_hash() produz.
+-- Quem entra no sistema. Perfil único: quem tem senha faz tudo, e não há papel
+-- de leitura — nem gerar.php se alcança sem sessão. A senha nunca é guardada,
+-- só o hash que password_hash() produz.
 CREATE TABLE IF NOT EXISTS usuarios (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     nome       TEXT NOT NULL,
