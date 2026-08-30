@@ -344,6 +344,16 @@ table.mes-grade td {
   pointer-events: none;
 }
 
+/* O caminho inverso do .realce: o mouse no quadrado do dia acende as linhas
+   daquele dia na lista do mês. Fundo e barra à esquerda, não a lâmina escura da
+   célula — aqui o que se destaca é texto, e escurecê-lo o tornaria ilegível.
+   A barra entra como box-shadow para não empurrar o texto: borda mudaria a
+   largura da linha e a lista inteira tremeria a cada passagem do mouse. */
+.eventos-mes li.realce-linha {
+  background: #e8efff;
+  box-shadow: inset 3px 0 0 rgba(30, 58, 138, .82);
+}
+
 /* Seletor de categoria do formulário de evento. É um dropdown próprio, e não
    um <select>, porque a cor de fundo de uma <option> é só sugestão: o Firefox
    no Linux a ignora, e a lista saía sem cor nenhuma. Cada linha aqui é HTML,
@@ -456,6 +466,26 @@ code {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+}
+
+/* ── Resumo: as duas contagens lado a lado ──
+   A da esquerda conta o dia pelo dia da semana em que ele cai; a da direita,
+   pelo horário que ele cumpre. Elas se leem comparando coluna com coluna, então
+   ficam lado a lado onde couber e empilhadas onde não couber — são 8 e 7 colunas,
+   e o corte é o xxl do Bootstrap (1400px). */
+.resumo-compacto th,
+.resumo-compacto td { font-size: .875rem; padding-top: .3rem; padding-bottom: .3rem; }
+.resumo-compacto th:first-child,
+.resumo-compacto td:first-child { white-space: nowrap; }
+
+/* O fio que separa as duas: à esquerda da segunda quando estão lado a lado, e em
+   cima dela quando empilham — senão a de baixo encosta na de cima sem divisão. */
+.resumo-par > .coluna-horario { border-top: 1px solid var(--bs-border-color); }
+@media (min-width: 1400px) {
+  .resumo-par > .coluna-horario {
+    border-top: 0;
+    border-left: 1px solid var(--bs-border-color);
+  }
 }
 
 /* ── Print ──────────────────────────────────── */

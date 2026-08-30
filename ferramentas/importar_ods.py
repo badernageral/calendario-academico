@@ -24,7 +24,7 @@ COR_CAT = {
     '#ff0000': 'Feriado Nacional',   # refinado por texto em origem_do_feriado()
     '#e452cf': 'Férias', '#ff00ff': 'Férias',
     '#7767d7': 'Exame Final',
-    '#ffff00': 'Período de culminância de Projetos Pedagógicos',
+    '#ffff00': 'Datas comemorativas',
     '#d0cece': 'Dias Escolares Não Letivos',
     '#00b050': 'Ponto Facultativo', '#6aa84f': 'Ponto Facultativo',
     '#1155cc': 'Planejamento Pedagógico',

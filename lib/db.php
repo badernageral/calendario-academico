@@ -10,8 +10,15 @@ const APP_ROOT = __DIR__ . '/..';
 // — daí o caminho poder vir do ambiente.
 define('DB_PATH', getenv('CALENDARIO_DB') ?: APP_ROOT . '/data/calendario.sqlite');
 
-/** Teto da prioridade que o formulário de legenda aceita; acima ficam os feriados. */
-const PRIORIDADE_MAX = 95;
+/**
+ * Teto da prioridade que o formulário de legenda aceita; acima ficam os feriados.
+ *
+ * Era 95 até o Feriado Escolar existir. Ele ficou com 95 — logo abaixo dos
+ * quatro que já havia —, e o teto desceu para não empatar com ele: o motor pinta
+ * com `>` estrito, e no empate a cor do dia sairia da ordem em que os eventos
+ * foram lidos, não de uma regra.
+ */
+const PRIORIDADE_MAX = 94;
 
 function db(): PDO
 {
@@ -130,6 +137,10 @@ function categoriasFixas(): array
         'Feriado Estadual'            => [98, 1],
         'Feriado Municipal'           => [97, 1],
         'Ponto Facultativo'           => [96, 1],
+        // Feriado da instituição, não da norma civil: o Dia do Professor é o
+        // caso. Fica abaixo dos três civis e do ponto facultativo — caindo no
+        // mesmo dia que um deles, quem pinta é o de alcance maior.
+        'Feriado Escolar'             => [95, 1],
         // Aplicada pelo motor nos dias de início e fim de cada bimestre e de
         // cada semestre, a partir das datas do próprio calendário. Prioridade
         // baixa de propósito: um feriado em cima do primeiro dia de aula pinta
@@ -142,36 +153,41 @@ function categoriasFixas(): array
 const CAT_SEMESTRE = 'Início ou Fim de semestre/bimestre letivo';
 
 /**
- * Nacional, estadual e municipal viram uma linha só, "Feriado", quando as três
- * estão na mesma cor — que é como o seed as entrega.
+ * Nacional, estadual, municipal e escolar viram uma linha só, "Feriado", quando
+ * as quatro estão na mesma cor — que é como o seed as entrega.
  *
- * A legenda existe para explicar as cores do calendário: três linhas com o
+ * A legenda existe para explicar as cores do calendário: quatro linhas com o
  * mesmo vermelho não explicam nada, só ocupam espaço numa página que já é
- * apertada. O que distingue as três é a origem da norma, e isso continua dito
+ * apertada. O que distingue as quatro é a origem da norma, e isso continua dito
  * onde importa — na lista do mês, em "25 - Natal - Feriado Nacional".
  *
- * Basta um campus dar cor própria a uma delas para as três voltarem a aparecer
- * separadas, que é quando a distinção passa a valer alguma coisa no papel.
+ * Basta um campus dar cor própria a uma delas para as quatro voltarem a
+ * aparecer separadas, que é quando a distinção passa a valer alguma coisa no
+ * papel. É tudo ou nada de propósito: quem diferenciou uma quis ver a diferença,
+ * e mostrar duas linhas juntas e duas soltas seria o pior dos dois mundos.
  *
- * A linha que fica herda a posição da primeira das três na ordem da legenda.
+ * O Ponto Facultativo fica de fora: ele já vem com cor própria no seed, e não é
+ * feriado — é dia em que o expediente é dispensável, não suprimido.
+ *
+ * A linha que fica herda a posição da primeira delas na ordem da legenda.
  */
 function juntarFeriadosDaLegenda(array $legenda): array
 {
-    $trio  = ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal'];
+    $tipos = ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal', 'Feriado Escolar'];
     $cores = [];
     foreach ($legenda as $c) {
-        if (in_array($c['nome'], $trio, true)) {
+        if (in_array($c['nome'], $tipos, true)) {
             $cores[$c['nome']] = strtolower((string) $c['cor']);
         }
     }
     // Faltando alguma, ou havendo cor diferente entre elas, não há o que juntar.
-    if (count($cores) !== 3 || count(array_unique($cores)) !== 1) {
+    if (count($cores) !== count($tipos) || count(array_unique($cores)) !== 1) {
         return $legenda;
     }
 
     $primeira = true;
     foreach ($legenda as $chave => $c) {
-        if (!in_array($c['nome'], $trio, true)) {
+        if (!in_array($c['nome'], $tipos, true)) {
             continue;
         }
         if ($primeira) {
@@ -208,7 +224,8 @@ function legendaDoCalendario(array $categorias): array
 /** Só as de feriado, que são as que a tela de Feriados oferece como tipo. */
 function nomesDeFeriado(): array
 {
-    return ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal', 'Ponto Facultativo'];
+    return ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal',
+            'Ponto Facultativo', 'Feriado Escolar'];
 }
 
 /**
@@ -263,8 +280,8 @@ function aplicarCategoriasFixas(PDO $pdo): void
 }
 
 /**
- * Feriados de fábrica: nacionais, estaduais do Tocantins e pontos facultativos
- * federais — o que vale igual em todo campus do IFTO.
+ * Feriados de fábrica: nacionais, estaduais do Tocantins, pontos facultativos
+ * federais e o feriado escolar — o que vale igual em todo campus do IFTO.
  *
  * Municipais não entram de propósito: mudam de cidade para cidade, e cada
  * campus cadastra os seus na tela de Feriados. A categoria *Feriado Municipal*
@@ -297,6 +314,10 @@ function semearFeriados(PDO $pdo): void
         ['Dia do Servidor Público federal',                     'fixo',  28, 10, null, 'Ponto Facultativo'],
         ['Véspera do Natal (após as 13 horas)',                 'fixo',  24, 12, null, 'Ponto Facultativo'],
         ['Véspera do Ano Novo (após as 13 horas)',              'fixo',  31, 12, null, 'Ponto Facultativo'],
+
+        // Não é feriado da norma civil: é dia escolar não letivo, e por isso
+        // tem categoria própria. A data é a mesma em todo lugar.
+        ['Dia do Professor',                                    'fixo',  15, 10, null, 'Feriado Escolar'],
     ];
     // As emendas — a segunda antes de um feriado de terça, a sexta depois de
     // Corpus Christi — não vêm de fábrica: a portaria anual do MGI as declara
@@ -339,7 +360,7 @@ function seed(PDO $pdo): void
     }
 
     // nome, cor, cor_texto, letivo, prioridade, na_legenda, ordem
-    // As quatro de feriado têm a prioridade corrigida logo abaixo por
+    // As de feriado têm a prioridade corrigida logo abaixo por
     // aplicarCategoriasFixas(), que é quem manda nelas.
     $cats = [
         // Exame Final é neutro: exames dentro do semestre continuam contando como
@@ -348,22 +369,26 @@ function seed(PDO $pdo): void
         // `>` estrito — no empate a cor do dia sairia da ordem em que os eventos
         // foram lidos, não de uma regra.
         ['Exame Final',                                   '#7767d7', '#ffffff', null, 85, 1, 1],
-        // Mesma cor e mesmo efeito nos três: o que muda é a origem da norma —
-        // federal, estadual ou municipal.
+        // Mesma cor e mesmo efeito nos quatro tipos de feriado: o que muda é a
+        // origem da norma — federal, estadual, municipal ou da própria escola.
         ['Feriado Nacional',                              '#ff0000', '#000000', 0,    99, 1, 2],
         ['Feriado Estadual',                              '#ff0000', '#000000', 0,    98, 1, 3],
         ['Feriado Municipal',                             '#ff0000', '#000000', 0,    97, 1, 4],
-        ['Férias',                                        '#e452cf', '#000000', 0,    90, 1, 5],
-        ['Período de culminância de Projetos Pedagógicos','#ffff00', '#000000', null, 45, 1, 6],
-        ['Dias Escolares Não Letivos',                    '#d0cece', '#000000', 0,    70, 1, 7],
-        ['Ponto Facultativo',                             '#00b050', '#000000', 0,    96, 1, 8],
-        ['Planejamento Pedagógico',                       '#1155cc', '#ffffff', 0,    65, 1, 9],
+        // O mesmo vermelho dos três civis: as quatro pintam o dia de feriado, e
+        // na legenda impressa viram uma linha só. O que as distingue é a origem
+        // da norma, e isso continua dito na lista do mês.
+        ['Feriado Escolar',                               '#ff0000', '#000000', 0,    95, 1, 5],
+        ['Férias',                                        '#e452cf', '#000000', 0,    90, 1, 6],
+        ['Datas comemorativas',                           '#ffff00', '#000000', null, 45, 1, 7],
+        ['Dias Escolares Não Letivos',                    '#d0cece', '#000000', 0,    70, 1, 8],
+        ['Ponto Facultativo',                             '#00b050', '#000000', 0,    96, 1, 9],
+        ['Planejamento Pedagógico',                       '#1155cc', '#ffffff', 0,    65, 1, 10],
         // Recesso: cinza como os Dias Escolares Não Letivos, e como eles não
         // conta. Vem com ordem 0 porque abre a legenda impressa.
         ['Recesso',                                       '#d0cece', '#000000', 0,    80, 1, 0],
         // Neutra: o primeiro e o último dia de um bimestre são dias de aula
         // normais — a categoria só os pinta. A cor se troca em Configurações.
-        [CAT_SEMESTRE,                                    '#9bc2e6', '#000000', null, 50, 1, 10],
+        [CAT_SEMESTRE,                                    '#9bc2e6', '#000000', null, 50, 1, 11],
     ];
     $st = $pdo->prepare(
         'INSERT INTO categorias (nome, cor, cor_texto, letivo, prioridade, na_legenda, ordem)

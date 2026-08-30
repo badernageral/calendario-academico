@@ -118,7 +118,9 @@ foreach ($eng->eventos() as $g_ev) {
     $g_porMes[(int) substr($g_ini, 5, 2)][] = ['ini' => $g_ini, 'ev' => $g_ev];
 }
 foreach ($g_porMes as &$g_lista) {
-    usort($g_lista, static fn ($a, $b) => [$a['ini'], $a['ev']['id']] <=> [$b['ini'], $b['ev']['id']]);
+    // A mesma comparação do impresso, e não uma cópia dela: a lista da tela e a
+    // do papel mostram o mesmo mês e não podem sair em ordens diferentes.
+    usort($g_lista, static fn ($a, $b): int => Engine::ordemNaLista($a['ev'], $b['ev']));
 }
 unset($g_lista, $g_ev, $g_ini);
 ?>
@@ -204,8 +206,11 @@ unset($g_lista, $g_ev, $g_ini);
                 $g_tit  = $g_tem
                     ? count($g_dias[$g_iso]['eventos']) . ' evento(s)'
                     : ($g_cat['nome'] ?? '');
+                // Como no impresso: a cor de fim de semana é do dia sem aula, e
+                // não da coluna. Sábado letivo sai com a cor do dia útil.
+                $g_fds  = ($g_i === 0 || $g_i === 6) && !$g_dia['letivo'];
                 ?>
-                <td class="dia<?= ($g_i === 0 || $g_i === 6) ? ' fds' : '' ?><?= $g_tem ? ' tem-evento' : '' ?>" style="<?= $g_est ?>"
+                <td class="dia<?= $g_fds ? ' fds' : '' ?><?= $g_tem ? ' tem-evento' : '' ?>" style="<?= $g_est ?>"
                     data-dia="<?= $g_iso ?>" title="<?= e($g_tit) ?>"
                     data-bs-toggle="modal" data-bs-target="#modalDia"><?= (int) substr($g_iso, 8, 2) ?></td>
               <?php endforeach; ?>
@@ -214,7 +219,9 @@ unset($g_lista, $g_ev, $g_ini);
           <?php if (!$g_global): ?>
           <tr class="contagem">
             <td></td>
-            <?php for ($g_dw = 1; $g_dw <= 6; $g_dw++): ?><td><?= $g_cont['por_dow'][$g_dw] ?: '' ?></td><?php endfor; ?>
+            <?php // O zero é escrito, como no impresso: célula vazia parece falta
+                  // de dado, e "nenhuma segunda letiva" é informação. ?>
+            <?php for ($g_dw = 1; $g_dw <= 6; $g_dw++): ?><td><?= (int) $g_cont['por_dow'][$g_dw] ?></td><?php endfor; ?>
           </tr>
           <tr class="total">
             <td><?= $g_cont['total'] ?></td>
@@ -342,9 +349,20 @@ unset($g_lista, $g_ev, $g_ini);
     celulas[td.dataset.dia] = td;
   });
 
+  // O caminho de volta: dia -> as linhas que falam dele. Nasce do mesmo passeio
+  // que liga cada linha aos seus dias, porque é a mesma informação lida ao
+  // contrário. Um evento que atravessa o mês aparece na lista do mês em que
+  // começa, então passar o mouse num dia de abril pode acender uma linha lá em
+  // março — que é justamente o que se quer ver.
+  var linhasDoDia = {};
+
   document.querySelectorAll('.eventos-mes li[data-dias]').forEach(function (li) {
     var dias = li.dataset.dias.split(',').filter(Boolean);
     if (!dias.length) { return; }
+
+    dias.forEach(function (d) {
+      (linhasDoDia[d] = linhasDoDia[d] || []).push(li);
+    });
 
     function acender(ligado) {
       dias.forEach(function (d) {
@@ -357,6 +375,22 @@ unset($g_lista, $g_ev, $g_ini);
     // acompanha o foco também.
     li.addEventListener('focusin',  function () { acender(true); });
     li.addEventListener('focusout', function () { acender(false); });
+  });
+
+  // E o inverso: o mouse no quadrado do dia acende as linhas daquele dia. Um dia
+  // sem evento nenhum não tem o que acender e não ganha ouvinte.
+  Object.keys(celulas).forEach(function (iso) {
+    var linhas = linhasDoDia[iso];
+    if (!linhas) { return; }
+
+    function acender(ligado) {
+      linhas.forEach(function (li) { li.classList.toggle('realce-linha', ligado); });
+    }
+    celulas[iso].addEventListener('mouseenter', function () { acender(true); });
+    celulas[iso].addEventListener('mouseleave', function () { acender(false); });
+    // Só mouse: o quadrado é um <td> sem tabindex, então não recebe foco pelo
+    // teclado. Quem navega assim chega aos eventos pela lista, e daquele lado o
+    // realce já acompanha o foco.
   });
 })();
 

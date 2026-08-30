@@ -26,6 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('calendarios.php?novo=1');
         }
 
+        // O calendário e os períodos dele vão juntos: um calendário sem período
+        // conta o ano inteiro como letivo, e é um estado que ninguém pediu.
+        $db->beginTransaction();
         try {
             $st = $db->prepare(
                 'INSERT INTO calendarios (curso_id, ano, situacao, local_texto, observacoes)
@@ -38,12 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 post('observacoes'),
             ]);
             $novoId = (int) $db->lastInsertId();
+            salvarPeriodos($db, $novoId, $bimestres);
+            $db->commit();
         } catch (PDOException $ex) {
+            $db->rollBack();
             flash('Já existe um calendário desse curso para ' . $ano . '.', 'erro');
             redirect('calendarios.php?novo=1');
+        } catch (Throwable $ex) {
+            $db->rollBack();
+            throw $ex;
         }
-
-        salvarPeriodos($db, $novoId, $bimestres);
 
         $origem = postInt('copiar_de');
         if ($origem) {
@@ -77,11 +84,6 @@ function copiarEventos(PDO $db, int $de, int $para, int $anoDestino): void
     );
     $sel = $db->prepare('SELECT inicio, fim FROM evento_datas WHERE evento_id = ?');
     foreach ($origem as $ev) {
-        $ins->execute([
-            $anoDestino, $para, $ev['categoria_id'], $ev['descricao'], $ev['pinta_dias'],
-            $ev['negrito'], $ev['conta_letivo'], $ev['rotulo'], $ev['nivel'], $ev['repoe_dow'],
-        ]);
-        $novo = (int) $db->lastInsertId();
         $sel->execute([$ev['id']]);
         $faixas = [];
         $delta  = $anoDestino - (int) $ev['ano'];
@@ -91,7 +93,17 @@ function copiarEventos(PDO $db, int $de, int $para, int $anoDestino): void
                 'fim'    => deslocarAno($d['fim'], $delta),
             ];
         }
-        salvarFaixas($db, $novo, $faixas);
+        // Evento sem faixa não existe no calendário — o motor o descarta. Copiá-lo
+        // só deixaria uma linha invisível no banco. É o que copiarEventosGlobais()
+        // já fazia; aqui faltava.
+        if (!$faixas) {
+            continue;
+        }
+        $ins->execute([
+            $anoDestino, $para, $ev['categoria_id'], $ev['descricao'], $ev['pinta_dias'],
+            $ev['negrito'], $ev['conta_letivo'], $ev['rotulo'], $ev['nivel'], $ev['repoe_dow'],
+        ]);
+        salvarFaixas($db, (int) $db->lastInsertId(), $faixas);
     }
 }
 

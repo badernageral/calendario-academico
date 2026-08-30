@@ -101,7 +101,7 @@ head('Usuários', 'usuarios');
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr><th>Nome</th><th>Usuário</th><th class="text-center">Situação</th>
-              <th>Desde</th><th class="text-end">Ações</th></tr>
+              <th class="text-end">Ações</th></tr>
         </thead>
         <tbody>
         <?php foreach ($usuarios as $u): ?>
@@ -120,7 +120,6 @@ head('Usuários', 'usuarios');
                 <span class="badge bg-secondary-subtle text-secondary-emphasis">inativo</span>
               <?php endif; ?>
             </td>
-            <td class="text-muted small"><?= e(substr((string) $u['criado_em'], 0, 10)) ?></td>
             <td class="text-end text-nowrap">
               <a class="btn btn-sm btn-outline-primary" href="usuarios.php?editar=<?= (int) $u['id'] ?>">
                 <i class="bi bi-pencil me-1"></i>Editar

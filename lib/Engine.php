@@ -514,6 +514,74 @@ final class Engine
             : $this->contagemEntre($bim['inicio'], $bim['fim']);
     }
 
+    /**
+     * A mesma contagem, mas pelo **horário que o dia cumpre** em vez do dia em
+     * que ele cai: um sábado letivo "com horário de segunda" conta como segunda,
+     * e uma quinta "com horário de sexta" conta como sexta.
+     *
+     * É o número que responde quantas aulas de cada dia da semana o período
+     * entregou — que não é o mesmo que quantos dias daquele dia da semana houve.
+     * Um semestre com quatro sábados repondo segunda tem quatro segundas a mais
+     * do que o calendário mostra.
+     *
+     * Só de segunda a sexta: reposição aponta para dia de aula, e nenhum dia
+     * repõe um sábado. Um sábado letivo sem reposição declarada não tem horário
+     * a cumprir e fica de fora — daí o total daqui poder ser menor que o de
+     * contagemSemestre(), e essa diferença é justamente o aviso de que faltou
+     * preencher "repõe" nele.
+     */
+    public function contagemHorarioSemestre(int $numero): array
+    {
+        $sem = $this->semestres[$numero] ?? null;
+        return $sem === null
+            ? ['por_dow' => array_fill(1, 5, 0), 'total' => 0]
+            : $this->contagemHorarioEntre($sem['inicio'], $sem['fim']);
+    }
+
+    public function contagemHorarioBimestre(int $numero): array
+    {
+        $bim = $this->bimestres[$numero] ?? null;
+        return $bim === null
+            ? ['por_dow' => array_fill(1, 5, 0), 'total' => 0]
+            : $this->contagemHorarioEntre($bim['inicio'], $bim['fim']);
+    }
+
+    /** @return array{por_dow: array<int,int>, total: int} Seg..Sex + total */
+    private function contagemHorarioEntre(string $de, string $ate): array
+    {
+        $por = array_fill(1, 5, 0);
+        $tot = 0;
+        foreach ($this->dias as $iso => $dia) {
+            if (!$dia['letivo'] || $iso < $de || $iso > $ate) {
+                continue;
+            }
+            $dw = $this->horarioDoDia($dia);
+            if ($dw >= 1 && $dw <= 5) {
+                $por[$dw]++;
+                $tot++;
+            }
+        }
+        return ['por_dow' => $por, 'total' => $tot];
+    }
+
+    /**
+     * O dia da semana cujo horário o dia cumpre: o que a reposição declarar e,
+     * não havendo nenhuma, o próprio dia da semana dele.
+     *
+     * Havendo mais de um evento com reposição no mesmo dia — que seria erro de
+     * cadastro —, vale o primeiro; dois horários no mesmo dia não existem.
+     */
+    private function horarioDoDia(array $dia): int
+    {
+        foreach ($dia['eventos'] as $chave) {
+            $ev = $this->eventos[$chave] ?? null;
+            if ($ev !== null && $ev['repoe_dow'] !== null) {
+                return (int) $ev['repoe_dow'];
+            }
+        }
+        return $dia['dow'];
+    }
+
     /** Dias letivos de um intervalo fechado, por dia da semana (Seg..Sáb) + total. */
     private function contagemEntre(string $de, string $ate): array
     {
@@ -531,6 +599,27 @@ final class Engine
         return ['por_dow' => $por, 'total' => $tot];
     }
 
+    /**
+     * A ordem em que dois eventos saem na lista do mês. Fica aqui, e é chamada
+     * também pela grade da tela, porque as duas listas mostram a mesma coisa e
+     * discordar seria defeito — já discordaram antes, cada uma com a sua cópia
+     * da regra.
+     *
+     * Pela data de início; empatando, pela de fim — "3 a 5" vem antes de "3 a
+     * 7", que é como se lê a lista. Empatando as duas, pelo id, para a ordem não
+     * depender de como o banco devolveu as linhas: sem esse último critério,
+     * dois eventos do mesmo período trocavam de lugar conforme a ordem em que
+     * foram cadastrados.
+     *
+     * Feriado e marco de bimestre têm id null e, no empate, encabeçam o dia —
+     * eles são o motivo de o dia ser o que é.
+     */
+    public static function ordemNaLista(array $a, array $b): int
+    {
+        return [$a['datas'][0]['inicio'], $a['datas'][0]['fim'], $a['id']]
+           <=> [$b['datas'][0]['inicio'], $b['datas'][0]['fim'], $b['id']];
+    }
+
     /** Eventos listados no mês, na ordem em que aparecem na planilha. */
     public function eventosDoMes(int $mes): array
     {
@@ -542,7 +631,7 @@ final class Engine
             }
             $out[] = ['ordem' => $ini, 'rotulo' => $this->rotulo($ev), 'ev' => $ev];
         }
-        usort($out, static fn ($a, $b) => [$a['ordem'], $a['ev']['id']] <=> [$b['ordem'], $b['ev']['id']]);
+        usort($out, static fn ($a, $b): int => self::ordemNaLista($a['ev'], $b['ev']));
         return $out;
     }
 

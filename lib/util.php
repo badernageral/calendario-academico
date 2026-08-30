@@ -91,12 +91,32 @@ function redirect(string $url): never
     exit;
 }
 
-/** A sessão guarda o aviso de uma tela para a outra e o token dos formulários. */
+/**
+ * A sessão guarda o aviso de uma tela para a outra e o token dos formulários.
+ *
+ * O cookie é configurado aqui, e não deixado por conta do php.ini: cada
+ * instalação tem o seu, e uma que não ligue httponly entrega o cookie de sessão
+ * a qualquer script da página. Definido na aplicação, vale igual no Apache, no
+ * servidor embutido e no modo desktop.
+ *
+ * `secure` só entra sob HTTPS — ligado em http o navegador descarta o cookie e
+ * ninguém consegue entrar. `use_strict_mode` faz o PHP recusar um id de sessão
+ * que ele não emitiu; o `session_regenerate_id()` do login já cobria a fixação,
+ * isto fecha a porta antes dela.
+ */
 function sessao(): void
 {
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
     }
+    ini_set('session.use_strict_mode', '1');
+    session_set_cookie_params([
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure'   => ($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off',
+        'path'     => '/',
+    ]);
+    session_start();
 }
 
 /**
@@ -376,43 +396,91 @@ function mesExtenso(int $m): string
 function parseFaixas(string $texto, int $ano): array
 {
     $out = [];
-    foreach (preg_split('/[;\n\r]+/', $texto) as $bruto) {
-        $t = trim($bruto);
-        if ($t === '') {
-            continue;
-        }
-        $t = str_replace([' a ', '–', '—'], ['..', '..', '..'], $t);
-        $partes = array_map('trim', explode('..', $t, 2));
-        $ini = normalizaData($partes[0], $ano);
-        $fim = isset($partes[1]) ? normalizaData($partes[1], $ano, $ini) : $ini;
-        if ($ini && $fim) {
-            $out[] = $fim < $ini ? ['inicio' => $fim, 'fim' => $ini] : ['inicio' => $ini, 'fim' => $fim];
+    foreach (linhasDeData($texto) as $t) {
+        if ($f = faixaDaLinha($t, $ano)) {
+            $out[] = $f;
         }
     }
     return $out;
 }
 
+/** As linhas da caixa de datas, sem as vazias. */
+function linhasDeData(string $texto): array
+{
+    $linhas = array_map('trim', preg_split('/[;\n\r]+/', $texto) ?: []);
+    return array_values(array_filter($linhas, static fn (string $l): bool => $l !== ''));
+}
+
+/**
+ * As linhas que não viraram faixa nenhuma.
+ *
+ * Existe para a tela poder dizer *qual* linha ela não entendeu. Sem isto, uma
+ * data impossível ou um "31/02" desapareciam calados no meio de datas boas, e
+ * quem cadastrou saía achando que tinha gravado o que digitou.
+ *
+ * @return string[]
+ */
+function datasRecusadas(string $texto, int $ano): array
+{
+    $ruins = [];
+    foreach (linhasDeData($texto) as $t) {
+        if (faixaDaLinha($t, $ano) === null) {
+            $ruins[] = $t;
+        }
+    }
+    return $ruins;
+}
+
+/**
+ * Uma linha vira uma faixa, ou null se não dá para entender.
+ *
+ * @return array{inicio:string,fim:string}|null
+ */
+function faixaDaLinha(string $t, int $ano): ?array
+{
+    $t = str_replace([' a ', '–', '—'], ['..', '..', '..'], $t);
+    $partes = array_map('trim', explode('..', $t, 2));
+    $ini = normalizaData($partes[0], $ano);
+    $fim = isset($partes[1]) ? normalizaData($partes[1], $ano, $ini) : $ini;
+    if ($ini === null || $fim === null) {
+        return null;
+    }
+    return $fim < $ini ? ['inicio' => $fim, 'fim' => $ini] : ['inicio' => $ini, 'fim' => $fim];
+}
+
+/**
+ * A data digitada, em Y-m-d — ou null se ela não existe no calendário.
+ *
+ * O `checkdate` no fim não é preciosismo: sem ele, "31/02/2026" saía daqui como
+ * a cadeia "2026-02-31", que o banco aceita e o DateTimeImmutable lê como 3 de
+ * março — o evento era listado em fevereiro e pintado em março. Pior, "99/99"
+ * casava o mesmo padrão e virava "2026-99-99", que o DateTimeImmutable recusa
+ * com exceção: gravado, ele derrubava a tela do calendário e a geração em 500,
+ * e não havia como apagá-lo porque a tela para isso era uma das que caíam.
+ */
 function normalizaData(string $t, int $ano, ?string $ref = null): ?string
 {
     $t = trim($t);
     if ($t === '') {
         return null;
     }
-    if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $t, $m)) {
-        return sprintf('%04d-%02d-%02d', (int) $m[1], (int) $m[2], (int) $m[3]);
-    }
-    if (preg_match('#^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$#', $t, $m)) {
-        $a = isset($m[3]) ? (int) $m[3] : $ano;
+    $a = $m = $d = null;
+    if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $t, $p)) {
+        [$a, $m, $d] = [(int) $p[1], (int) $p[2], (int) $p[3]];
+    } elseif (preg_match('#^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$#', $t, $p)) {
+        $a = isset($p[3]) ? (int) $p[3] : $ano;
         if ($a < 100) {
             $a += 2000;
         }
-        return sprintf('%04d-%02d-%02d', $a, (int) $m[2], (int) $m[1]);
+        [$m, $d] = [(int) $p[2], (int) $p[1]];
+    } elseif (preg_match('/^(\d{1,2})$/', $t, $p) && $ref) {
+        // só o dia: herda mês e ano da data de referência
+        [$a, $m, $d] = [(int) substr($ref, 0, 4), (int) substr($ref, 5, 2), (int) $p[1]];
+    } else {
+        return null;
     }
-    // só o dia: herda mês/ano da data de referência
-    if (preg_match('/^(\d{1,2})$/', $t, $m) && $ref) {
-        return sprintf('%s-%02d', substr($ref, 0, 7), (int) $m[1]);
-    }
-    return null;
+
+    return checkdate($m, $d, $a) ? sprintf('%04d-%02d-%02d', $a, $m, $d) : null;
 }
 
 /** Devolve o texto que o formulário mostra na caixa de datas, em dd/mm/aaaa. */
@@ -573,7 +641,13 @@ function deslocarAno(string $iso, int $delta): string
 
 function salvarPeriodos(PDO $db, int $calendarioId, array $bimestres): void
 {
-    $db->beginTransaction();
+    // Quem chama pode já ter aberto uma transação — a criação de um calendário
+    // abre, para a linha em `calendarios` e os períodos dela irem juntos. O PDO
+    // não aninha transação, então aqui só se abre a própria quando não há uma.
+    $propria = !$db->inTransaction();
+    if ($propria) {
+        $db->beginTransaction();
+    }
     try {
         $db->prepare('DELETE FROM periodos WHERE calendario_id = ?')->execute([$calendarioId]);
         $ins = $db->prepare('INSERT INTO periodos (calendario_id, tipo, numero, inicio, fim) VALUES (?,?,?,?,?)');
@@ -584,9 +658,15 @@ function salvarPeriodos(PDO $db, int $calendarioId, array $bimestres): void
         foreach (semestresDosBimestres($bimestres) as $n => [$inicio, $fim]) {
             $ins->execute([$calendarioId, 'semestre', $n, $inicio, $fim]);
         }
-        $db->commit();
+        if ($propria) {
+            $db->commit();
+        }
     } catch (Throwable $e) {
-        $db->rollBack();
+        // Sendo de fora, quem a abriu é que desfaz — desfazer aqui cortaria pela
+        // metade o que o chamador ainda ia gravar.
+        if ($propria) {
+            $db->rollBack();
+        }
         throw $e;
     }
 }

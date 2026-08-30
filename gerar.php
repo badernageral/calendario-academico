@@ -79,15 +79,25 @@ function cabecalho(string $titulo): void
                 $cat  = $d['categoria'];
                 $est  = $cat ? 'background:' . e($cat['cor']) . ';color:' . e($cat['cor_texto']) . ';' : '';
                 $tit  = $cat ? $cat['nome'] : '';
+                // A cor de fim de semana é do dia que não tem aula, não da
+                // coluna: um sábado letivo é dia de aula e sai com a cor do dia
+                // útil. Sem isto, o sábado que entrou para fechar a conta do
+                // bimestre continuava pintado como se fosse folga.
+                $fds  = $fdsCol && !$d['letivo'];
                 ?>
-                <td class="<?= $fdsCol ? 'fds' : '' ?>" style="<?= $est ?>" title="<?= e($tit) ?>"><?= (int) substr($iso, 8, 2) ?></td>
+                <td class="<?= $fds ? 'fds' : '' ?>" style="<?= $est ?>" title="<?= e($tit) ?>"><?= (int) substr($iso, 8, 2) ?></td>
               <?php endforeach; ?>
             </tr>
           <?php endforeach; ?>
+          <?php // O zero é escrito, e não deixado em branco: a linha conta dias
+                // letivos por dia da semana, e "nenhuma segunda" é informação —
+                // célula vazia parece falta de dado. Em janeiro e julho, quando o
+                // mês inteiro fica fora do semestre, a linha sai toda zerada, que
+                // é o que a planilha do campus sempre imprimiu. ?>
           <tr class="contagem">
             <td></td>
             <?php for ($dw = 1; $dw <= 6; $dw++): ?>
-              <td><?= $cont['por_dow'][$dw] ?: '' ?></td>
+              <td><?= (int) $cont['por_dow'][$dw] ?></td>
             <?php endfor; ?>
           </tr>
           <tr class="total">

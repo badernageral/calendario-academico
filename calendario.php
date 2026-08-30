@@ -167,43 +167,56 @@ $gradeVerLocais   = $verLocais;
 require __DIR__ . '/lib/grade_calendario.php';
 ?>
 
-<div class="card border-0 shadow-sm mb-4">
-  <div class="card-header bg-transparent fw-semibold">
-    <i class="bi bi-calculator me-2 text-primary"></i>Resumo dos semestres e bimestres
-  </div>
-  <div class="card-body p-0">
+<?php
+// As duas contagens do mesmo período, lado a lado: à esquerda pelo dia da semana
+// em que o dia cai, à direita pelo horário que ele cumpre. Ver as duas juntas é
+// o que mostra o sábado saindo de uma coluna e entrando na outra.
+$h1 = $eng->contagemHorarioSemestre(1);
+$h2 = $eng->contagemHorarioSemestre(2);
+// Sábado letivo sem "repõe" não tem horário a cumprir e fica fora da direita.
+$semHorario = ($c1['total'] + $c2['total']) - ($h1['total'] + $h2['total']);
+
+// Num calendário anterior aos bimestres a lista vem vazia, e sobram os semestres.
+$temBimestres = $eng->bimestres() !== [];
+
+/**
+ * Uma das duas tabelas. Têm o mesmo desenho — o semestre, os dois bimestres dele
+ * recuados e o ano no fim — e só diferem em quantas colunas de dia da semana
+ * mostram e de onde vêm os números.
+ *
+ * @param array<int, array>     $semestres  a contagem de cada semestre, por número
+ * @param callable(int): array  $doBimestre a contagem de um bimestre, por número
+ * @param int                   $ultimoDow  6 inclui sábado; 5 para no sexta
+ */
+$tabela = static function (array $semestres, callable $doBimestre, int $ultimoDow)
+        use ($temBimestres, $regime): void {
+    ?>
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0 text-center">
+      <table class="table table-sm table-hover align-middle mb-0 text-center resumo-compacto">
         <thead class="table-light">
           <tr>
             <th class="text-start">Período</th>
-            <?php foreach (['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as $dia): ?>
-              <th><?= $dia ?></th>
+            <?php foreach (array_slice(['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'], 0, $ultimoDow) as $d): ?>
+              <th><?= $d ?></th>
             <?php endforeach; ?>
-            <th>Dias letivos</th>
+            <th>Total</th>
           </tr>
         </thead>
         <tbody>
-          <?php
-          // Cada semestre e, logo abaixo, os seus dois bimestres. O bimestre
-          // entra recuado e em cinza: é o detalhe da linha de cima, e a soma
-          // dos dois fecha com ela. Num calendário anterior aos bimestres a
-          // lista deles vem vazia, e a tabela fica só com os semestres.
-          $temBimestres = $eng->bimestres() !== [];
-          foreach ([[1, $c1, [1, 2]], [2, $c2, [3, 4]]] as [$n, $c, $doSemestre]):
-          ?>
+          <?php foreach ([[1, [1, 2]], [2, [3, 4]]] as [$n, $doSemestre]): ?>
+          <?php $c = $semestres[$n]; ?>
           <tr>
             <td class="text-start fw-semibold"><?= $n ?>º semestre</td>
-            <?php for ($dw = 1; $dw <= 6; $dw++): ?>
+            <?php for ($dw = 1; $dw <= $ultimoDow; $dw++): ?>
               <td><?= $c['por_dow'][$dw] ?></td>
             <?php endfor; ?>
             <td><span class="badge bg-light text-secondary border"><?= $c['total'] ?></span></td>
           </tr>
             <?php if ($temBimestres): foreach ($doSemestre as $b): ?>
-            <?php $cb = $eng->contagemBimestre($b); ?>
+            <?php $cb = $doBimestre($b); ?>
             <tr class="linha-bimestre">
-              <td class="text-start text-muted ps-4"><?= rotuloBimestre($b, $regime) ?>º bimestre</td>
-              <?php for ($dw = 1; $dw <= 6; $dw++): ?>
+              <td class="text-start text-muted ps-3"><?= rotuloBimestre($b, $regime) ?>º bim.</td>
+              <?php for ($dw = 1; $dw <= $ultimoDow; $dw++): ?>
                 <td class="text-muted"><?= $cb['por_dow'][$dw] ?></td>
               <?php endfor; ?>
               <td class="text-muted"><?= $cb['total'] ?></td>
@@ -212,15 +225,49 @@ require __DIR__ . '/lib/grade_calendario.php';
           <?php endforeach; ?>
           <tr class="fw-semibold table-light">
             <td class="text-start">Ano</td>
-            <?php for ($dw = 1; $dw <= 6; $dw++): ?>
-              <td><?= $c1['por_dow'][$dw] + $c2['por_dow'][$dw] ?></td>
+            <?php for ($dw = 1; $dw <= $ultimoDow; $dw++): ?>
+              <td><?= $semestres[1]['por_dow'][$dw] + $semestres[2]['por_dow'][$dw] ?></td>
             <?php endfor; ?>
-            <td><?= $c1['total'] + $c2['total'] ?></td>
+            <td><?= $semestres[1]['total'] + $semestres[2]['total'] ?></td>
           </tr>
         </tbody>
       </table>
     </div>
+    <?php
+};
+?>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-transparent fw-semibold">
+    <i class="bi bi-calculator me-2 text-primary"></i>Resumo dos dias letivos
   </div>
+  <div class="card-body p-0">
+    <div class="row g-0 resumo-par">
+      <div class="col-xxl-6">
+        <div class="px-3 py-2 small text-muted border-bottom">
+          <i class="bi bi-calendar-week me-1"></i>Pelo dia da semana em que cai
+        </div>
+        <?php $tabela([1 => $c1, 2 => $c2], static fn (int $b): array => $eng->contagemBimestre($b), 6); ?>
+      </div>
+      <div class="col-xxl-6 coluna-horario">
+        <div class="px-3 py-2 small text-muted border-bottom">
+          <i class="bi bi-clock-history me-1"></i>Pelo horário que cumpre
+          <span class="d-none d-sm-inline">— o sábado entra na coluna do dia que repõe</span>
+        </div>
+        <?php $tabela([1 => $h1, 2 => $h2], static fn (int $b): array => $eng->contagemHorarioBimestre($b), 5); ?>
+      </div>
+    </div>
+  </div>
+  <?php if ($semHorario > 0): ?>
+  <div class="card-footer bg-transparent small">
+    <span class="text-warning-emphasis">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i>
+      <?= $semHorario ?> dia<?= $semHorario === 1 ? '' : 's' ?> letivo<?= $semHorario === 1 ? '' : 's' ?>
+      de sábado <?= $semHorario === 1 ? 'está' : 'estão' ?> fora da contagem por horário por não
+      <?= $semHorario === 1 ? 'ter' : 'terem' ?> o campo <strong>repõe o dia da semana</strong> preenchido.
+    </span>
+  </div>
+  <?php endif; ?>
   <?php if ($eng->notasReposicao()): ?>
   <div class="card-footer bg-transparent small text-muted">
     <?php foreach ($eng->notasReposicao() as $sem => $linhas): ?>

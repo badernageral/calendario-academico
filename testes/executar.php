@@ -26,6 +26,9 @@ register_shutdown_function(static function () use ($tmp): void {
 });
 
 require __DIR__ . '/../lib/boot.php';
+// O boot carrega o que toda tela precisa; os tratadores de POST cada tela pede
+// por conta. A suíte pede aqui os que ela testa por fora da tela.
+require __DIR__ . '/../lib/eventos_crud.php';
 
 // ─────────────────────────────────────────────────────────── mínimo de suíte
 
@@ -153,6 +156,12 @@ function bancoLimpo(): PDO
     return $db;
 }
 
+/** Quatro bimestres válidos, para quem só precisa de períodos gravados. */
+const BIMESTRES_TESTE = [
+    1 => ['2026-02-02', '2026-04-20'], 2 => ['2026-04-22', '2026-07-02'],
+    3 => ['2026-07-30', '2026-10-08'], 4 => ['2026-10-09', '2026-12-18'],
+];
+
 // ══════════════════════════════════════════════════════════════════ testes
 
 grupo('Dia letivo: a regra do dia da semana');
@@ -196,7 +205,7 @@ confere('conta_letivo=1 fora dos semestres não vale', $eng->dia('2026-07-15')['
 grupo('Cor do dia: vence a categoria de maior prioridade');
 $db  = bancoLimpo();
 $cal = calendarioDeTeste($db);
-evento($db, $cal, 'Culminância', ['2026-03-10'], ['categoria_id' => categoriaId($db, 'Período de culminância de Projetos Pedagógicos')]);  // prioridade 45
+evento($db, $cal, 'Culminância', ['2026-03-10'], ['categoria_id' => categoriaId($db, 'Datas comemorativas')]);  // prioridade 45
 evento($db, $cal, 'Exame final',  ['2026-03-10'], ['categoria_id' => categoriaId($db, 'Exame Final')]);                                     // prioridade 80
 $eng = Engine::paraCalendario($db, $cal);
 confere('a de prioridade 80 pinta o dia, não a de 45', $eng->dia('2026-03-10')['categoria']['nome'], 'Exame Final');
@@ -304,6 +313,108 @@ confere('três faixas usam vírgula e "e"', $rot([['2026-03-05', '2026-03-08'], 
 confere('faixa que atravessa o mês',     $rot([['2026-09-30', '2026-10-24']]), '30 a 24/10');
 confere('o rótulo digitado manda',       $rot([['2026-03-05', '2026-03-06']], '5 e 6'), '5 e 6');
 
+grupo('Data que não existe é recusada, não corrigida em silêncio');
+// "31/02" saía daqui como a cadeia "2026-02-31": o banco aceitava, o
+// DateTimeImmutable lia como 3 de março, e o evento era listado em fevereiro e
+// pintado em março. "99/99" era pior — virava "2026-99-99", que o
+// DateTimeImmutable recusa com exceção, derrubando a tela em 500.
+confere('31 de fevereiro não existe',      parseFaixas('31/02/2026', ANO), []);
+confere('30 de fevereiro tampouco',        parseFaixas('30/02/2026', ANO), []);
+confere('31 de abril tampouco',            parseFaixas('31/04/2026', ANO), []);
+confere('99/99 não vira data nenhuma',     parseFaixas('99/99/2026', ANO), []);
+confere('mês 13 não existe',               parseFaixas('15/13/2026', ANO), []);
+confere('nem em ISO passa',                parseFaixas('2026-02-31', ANO), []);
+// 29 de fevereiro existe no bissexto e não existe fora dele.
+confere('29/02 em ano comum é recusado',   parseFaixas('29/02/2026', ANO), []);
+confere('e em bissexto passa',             parseFaixas('29/02/2024', 2024),
+    [['inicio' => '2024-02-29', 'fim' => '2024-02-29']]);
+// O dia solto herda mês e ano da referência — e é conferido do mesmo jeito. Não
+// existindo o fim, a linha inteira cai: "14/02 a 31" pede 14 a 31 de fevereiro,
+// e virar só o dia 14 seria entregar calado menos do que foi pedido.
+confere('dia solto impossível derruba a faixa toda', parseFaixas('14/02 a 31', ANO), []);
+confere('e a linha é nomeada para a tela',  datasRecusadas('14/02 a 31', ANO), ['14/02 a 31']);
+confere('dia solto possível entra',        parseFaixas('14/02 a 20', ANO),
+    [['inicio' => '2026-02-14', 'fim' => '2026-02-20']]);
+
+// A tela precisa dizer qual linha não entendeu: descartada em silêncio no meio
+// de datas boas, quem cadastrou sai achando que gravou o que digitou.
+confere('a linha recusada é nomeada',      datasRecusadas("10/03/2026\n31/02/2026", ANO), ['31/02/2026']);
+confere('e as boas não entram na lista',   datasRecusadas('10/03/2026', ANO), []);
+confere('texto solto também é recusado',   datasRecusadas('semana que vem', ANO), ['semana que vem']);
+
+grupo('Períodos gravados de dentro de uma transação maior');
+$db  = bancoLimpo();
+$cal = calendarioDeTeste($db);
+// A criação de um calendário abre a transação e chama salvarPeriodos() dentro
+// dela; o PDO não aninha, então a função só abre a própria quando não há uma.
+confere('salvarPeriodos não abre transação por cima da que já existe', (function () use ($db, $cal) {
+    $db->beginTransaction();
+    salvarPeriodos($db, $cal, BIMESTRES_TESTE);
+    $dentro = $db->inTransaction();
+    $db->commit();
+    return [$dentro, $db->inTransaction()];
+})(), [true, false]);
+confere('e os períodos ficaram gravados',
+    array_keys(bimestresDoCalendario($db, $cal)), [1, 2, 3, 4]);
+confere('sozinha, ela ainda fecha a própria transação', (function () use ($db, $cal) {
+    salvarPeriodos($db, $cal, BIMESTRES_TESTE);
+    return $db->inTransaction();
+})(), false);
+
+grupo('A ordem da lista do mês');
+$db  = bancoLimpo();
+$cal = calendarioDeTeste($db);
+
+/** Os rótulos do mês, só dos eventos cadastrados — sem os feriados de fábrica. */
+$soMeus = static function (PDO $db, int $cal, int $mes, array $descricoes): array {
+    $out = [];
+    foreach (Engine::paraCalendario($db, $cal)->eventosDoMes($mes) as $item) {
+        if (in_array($item['ev']['descricao'], $descricoes, true)) {
+            $out[] = $item['rotulo'];
+        }
+    }
+    return $out;
+};
+
+// O caso real: dois períodos começando no mesmo dia. O mais curto vem antes,
+// que é como se lê — "3 a 5" antes de "3 a 7". Cadastrados na ordem inversa de
+// propósito: antes disto mandava o id, e a lista saía na ordem do cadastro.
+evento($db, $cal, 'Matrícula',    [['2026-08-03', '2026-08-07']]);
+evento($db, $cal, 'Proficiência', [['2026-08-03', '2026-08-05']]);
+confere('mesmo início, o que termina antes vem primeiro',
+    $soMeus($db, $cal, 8, ['Matrícula', 'Proficiência']), ['3 a 5', '3 a 7']);
+
+// Início e fim iguais: aí manda o id, para a ordem não depender de como o banco
+// devolveu as linhas.
+evento($db, $cal, 'Primeiro', ['2026-09-10']);
+evento($db, $cal, 'Segundo',  ['2026-09-10']);
+confere('empatando início e fim, vale a ordem de cadastro', (function () use ($db, $cal) {
+    $out = [];
+    foreach (Engine::paraCalendario($db, $cal)->eventosDoMes(9) as $item) {
+        if (in_array($item['ev']['descricao'], ['Primeiro', 'Segundo'], true)) {
+            $out[] = $item['ev']['descricao'];
+        }
+    }
+    return $out;
+})(), ['Primeiro', 'Segundo']);
+
+// Feriado e marco de bimestre não têm id: no empate encabeçam o dia, porque são
+// o motivo de o dia ser o que é.
+evento($db, $cal, 'Evento de Tiradentes', ['2026-04-21']);
+confere('no mesmo dia, o feriado vem antes do evento', array_map(
+    static fn (array $i): string => $i['ev']['descricao'],
+    array_values(array_filter(
+        Engine::paraCalendario($db, $cal)->eventosDoMes(4),
+        static fn (array $i): bool => $i['rotulo'] === '21'
+    ))
+), ['Tiradentes', 'Evento de Tiradentes']);
+
+// A tela e o papel ordenam pela mesma função — a comparação é uma só.
+confere('a comparação é pública e serve às duas listas', Engine::ordemNaLista(
+    ['datas' => [['inicio' => '2026-08-03', 'fim' => '2026-08-05']], 'id' => 99],
+    ['datas' => [['inicio' => '2026-08-03', 'fim' => '2026-08-07']], 'id' => 1]
+) < 0, true);
+
 grupo('Notas de reposição');
 $db  = bancoLimpo();
 $cal = calendarioDeTeste($db);
@@ -314,6 +425,95 @@ evento($db, $cal, 'Sábados letivos', [
 confere('quatro sábados com horário de segunda',
     Engine::paraCalendario($db, $cal)->notasReposicao()[1],
     ['4 sábados letivos com horário de segunda']);
+
+grupo('Dias letivos contados pelo horário que cumprem');
+// O mesmo cenário dos quatro sábados de março repondo segunda. Contado pelo dia
+// em que cai, o semestre tem 4 sábados; contado pelo horário, tem 4 segundas a
+// mais e sábado nenhum.
+$eng   = Engine::paraCalendario($db, $cal);
+$porDia     = $eng->contagemSemestre(1);
+$porHorario = $eng->contagemHorarioSemestre(1);
+confere('pelo dia da semana, os quatro sábados aparecem como sábado',
+    $porDia['por_dow'][6], 4);
+confere('pelo horário, não há coluna de sábado',
+    array_keys($porHorario['por_dow']), [1, 2, 3, 4, 5]);
+confere('e as quatro viraram segundas',
+    $porHorario['por_dow'][1] - $porDia['por_dow'][1], 4);
+confere('nenhum outro dia da semana se mexeu', [
+    $porHorario['por_dow'][2] - $porDia['por_dow'][2],
+    $porHorario['por_dow'][3] - $porDia['por_dow'][3],
+    $porHorario['por_dow'][4] - $porDia['por_dow'][4],
+    $porHorario['por_dow'][5] - $porDia['por_dow'][5],
+], [0, 0, 0, 0]);
+confere('e o total continua o mesmo, porque todo sábado tinha horário',
+    $porHorario['total'], $porDia['total']);
+
+// Reposição não é só de sábado: uma quinta-feira pode cumprir horário de sexta,
+// e aí ela sai da coluna da quinta e entra na da sexta.
+$db2  = bancoLimpo();
+$cal2 = calendarioDeTeste($db2);
+evento($db2, $cal2, 'Quinta com horário de sexta', ['2026-03-05'], ['repoe_dow' => 5]);
+$e2 = Engine::paraCalendario($db2, $cal2);
+confere('a quinta reposta sai da quinta e entra na sexta', [
+    $e2->contagemHorarioSemestre(1)['por_dow'][4] - $e2->contagemSemestre(1)['por_dow'][4],
+    $e2->contagemHorarioSemestre(1)['por_dow'][5] - $e2->contagemSemestre(1)['por_dow'][5],
+], [-1, 1]);
+
+// Sábado letivo sem "repõe" preenchido não tem horário a cumprir: ele conta como
+// dia letivo, mas fica fora da contagem por horário. A diferença entre os dois
+// totais é o que denuncia o campo em branco.
+$db3  = bancoLimpo();
+$cal3 = calendarioDeTeste($db3);
+evento($db3, $cal3, 'Sábado letivo sem reposição', ['2026-03-07'], ['conta_letivo' => 1]);
+$e3 = Engine::paraCalendario($db3, $cal3);
+confere('sábado sem reposição conta como dia letivo',
+    $e3->contagemSemestre(1)['por_dow'][6], 1);
+confere('mas fica de fora da contagem por horário',
+    $e3->contagemSemestre(1)['total'] - $e3->contagemHorarioSemestre(1)['total'], 1);
+
+grupo('Fim de semana letivo tem de dizer que horário repõe');
+$db  = bancoLimpo();
+$cal = calendarioDeTeste($db);
+// 07/03/2026 é sábado; 08/03 é domingo; 09/03 é segunda.
+$faixa = static fn (string $i, string $f = ''): array => [['inicio' => $i, 'fim' => $f ?: $i]];
+
+confere('sábado é achado na faixa',      fimDeSemanaEm($faixa('2026-03-07')), ['2026-03-07']);
+confere('domingo também',                fimDeSemanaEm($faixa('2026-03-08')), ['2026-03-08']);
+confere('segunda não',                   fimDeSemanaEm($faixa('2026-03-09')), []);
+confere('a faixa é percorrida dia a dia', fimDeSemanaEm($faixa('2026-03-02', '2026-03-15')),
+    ['2026-03-07', '2026-03-08', '2026-03-14', '2026-03-15']);
+confere('faixas separadas se juntam em ordem',
+    fimDeSemanaEm([['inicio' => '2026-03-14', 'fim' => '2026-03-14'],
+                   ['inicio' => '2026-03-07', 'fim' => '2026-03-07']]),
+    ['2026-03-07', '2026-03-14']);
+
+// Quem obriga o dia a contar: o conta_letivo do evento e, sendo ele neutro, o
+// letivo da categoria. É a mesma regra que o motor aplica.
+$neutra  = categoriaId($db, 'Exame Final');                  // letivo NULL
+$naoLetiva = categoriaId($db, 'Recesso');                    // letivo 0
+// bancoLimpo() não mexe em `categorias` — ali fica o estado de instalação nova.
+// Então esta sai no fim do grupo: deixada para trás, ela entraria na legenda de
+// todos os grupos seguintes e mudaria a posição das linhas no papel.
+$db->exec("INSERT INTO categorias (nome, cor, letivo) VALUES ('TESTE letiva', '#123456', 1)");
+$letiva = categoriaId($db, 'TESTE letiva');
+
+confere('conta_letivo = 1 obriga',           forcaDiaLetivo($db, 1, null), true);
+confere('conta_letivo = 0 não',              forcaDiaLetivo($db, 0, null), false);
+confere('e vence a categoria letiva',        forcaDiaLetivo($db, 0, $letiva), false);
+confere('neutro sem categoria não obriga',   forcaDiaLetivo($db, null, null), false);
+confere('neutro com categoria letiva, sim',  forcaDiaLetivo($db, null, $letiva), true);
+confere('neutro com categoria neutra, não',  forcaDiaLetivo($db, null, $neutra), false);
+confere('neutro com categoria não letiva, não', forcaDiaLetivo($db, null, $naoLetiva), false);
+confere('categoria que não existe não obriga', forcaDiaLetivo($db, null, 99999), false);
+
+// O motor tem de concordar: um sábado com categoria letiva conta mesmo.
+evento($db, $cal, 'Sábado por categoria', ['2026-03-07'],
+    ['categoria_id' => $letiva, 'repoe_dow' => 1]);
+confere('o motor conta o sábado que a categoria tornou letivo',
+    Engine::paraCalendario($db, $cal)->dia('2026-03-07')['letivo'], true);
+$db->exec("DELETE FROM categorias WHERE nome = 'TESTE letiva'");
+confere('e a categoria de teste não fica no banco',
+    (int) $db->query("SELECT COUNT(*) FROM categorias WHERE nome LIKE 'TESTE %'")->fetchColumn(), 0);
 
 grupo('Leitura das datas digitadas');
 confere('ISO',                 parseFaixas('2026-03-07', ANO), [['inicio' => '2026-03-07', 'fim' => '2026-03-07']]);
@@ -451,20 +651,39 @@ confere('o dia letivo comum entra na legenda, e por último',
 confere('com a cor de Configurações', $leg['dia_letivo']['cor'], cfg('cor_dia_util'));
 // Nacional, estadual e municipal saem do seed na mesma cor: no papel viram uma
 // linha só. Ponto Facultativo tem cor própria e continua à parte.
-confere('as três de feriado na mesma cor viram uma linha "Feriado"',
+confere('as quatro de feriado na mesma cor viram uma linha "Feriado"',
     array_values(array_filter(array_column($leg, 'nome'),
         static fn ($n) => str_contains($n, 'Feriado') || $n === 'Ponto Facultativo')),
     ['Feriado', 'Ponto Facultativo']);
-confere('e ela fica na posição da primeira das três',
+// O Ponto Facultativo fica de fora da junção mesmo pintado do mesmo vermelho:
+// ele não é feriado — é dia de expediente dispensável, não suprimido.
+confere('o Ponto Facultativo não entra na junção nem com a cor dos feriados',
+    (function () use ($db, $cal) {
+        $db->exec("UPDATE categorias SET cor = '#ff0000' WHERE nome = 'Ponto Facultativo'");
+        $l = legendaDoCalendario(Engine::paraCalendario($db, $cal)->categorias());
+        $db->exec("UPDATE categorias SET cor = '#00b050' WHERE nome = 'Ponto Facultativo'");
+        return array_values(array_filter(array_column($l, 'nome'),
+            static fn ($n) => str_contains($n, 'Feriado') || $n === 'Ponto Facultativo'));
+    })(), ['Feriado', 'Ponto Facultativo']);
+confere('e ela fica na posição da primeira delas',
     array_search('Feriado', array_column($leg, 'nome'), true), 2);
 // Dar cor própria a uma delas desfaz a junção: aí a distinção diz algo no papel.
-confere('cor diferente em uma traz as três de volta', (function () use ($db, $cal) {
+// Tudo ou nada: quem diferenciou uma quis ver a diferença, e aí as quatro
+// voltam separadas — não duas juntas e duas soltas.
+confere('cor diferente em uma traz as quatro de volta', (function () use ($db, $cal) {
     $db->exec("UPDATE categorias SET cor = '#cc0000' WHERE nome = 'Feriado Municipal'");
     $l = legendaDoCalendario(Engine::paraCalendario($db, $cal)->categorias());
     $db->exec("UPDATE categorias SET cor = '#ff0000' WHERE nome = 'Feriado Municipal'");
     return array_values(array_filter(array_column($l, 'nome'),
         static fn ($n) => str_starts_with($n, 'Feriado')));
-})(), ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal']);
+})(), ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal', 'Feriado Escolar']);
+confere('e vale para o escolar também', (function () use ($db, $cal) {
+    $db->exec("UPDATE categorias SET cor = '#f4b183' WHERE nome = 'Feriado Escolar'");
+    $l = legendaDoCalendario(Engine::paraCalendario($db, $cal)->categorias());
+    $db->exec("UPDATE categorias SET cor = '#ff0000' WHERE nome = 'Feriado Escolar'");
+    return array_values(array_filter(array_column($l, 'nome'),
+        static fn ($n) => str_starts_with($n, 'Feriado')));
+})(), ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal', 'Feriado Escolar']);
 // A origem da norma não se perde: ela continua na lista do mês.
 confere('a lista do mês continua dizendo a origem', (function () use ($db, $cal) {
     $e = Engine::paraCalendario($db, $cal);
@@ -534,6 +753,17 @@ confere('e por dia da semana também', array_map(
     static fn (int $dw): int => $eng->contagemBimestre(1)['por_dow'][$dw] + $eng->contagemBimestre(2)['por_dow'][$dw],
     range(1, 6)
 ), array_values($eng->contagemSemestre(1)['por_dow']));
+
+// E a contagem por horário fecha do mesmo jeito: os bimestres continuam sem se
+// sobrepor depois de o sábado ser realocado para o dia que ele repõe.
+confere('1º + 2º bimestre fecham o 1º semestre também por horário',
+    $eng->contagemHorarioBimestre(1)['total'] + $eng->contagemHorarioBimestre(2)['total'],
+    $eng->contagemHorarioSemestre(1)['total']);
+confere('e por horário de cada dia da semana', array_map(
+    static fn (int $dw): int => $eng->contagemHorarioBimestre(1)['por_dow'][$dw]
+                              + $eng->contagemHorarioBimestre(2)['por_dow'][$dw],
+    range(1, 5)
+), array_values($eng->contagemHorarioSemestre(1)['por_dow']));
 
 // O caso real de quem monta o calendário: falta um dia no bimestre, e um sábado
 // letivo entra para fechar a conta. O contador do bimestre tem de subir junto
@@ -884,27 +1114,59 @@ confere('o banco recusa um regime inventado', (function () use ($db) {
 
 grupo('As categorias de feriado, agora fora da tela de Legenda');
 $db = bancoLimpo();
-confere('os quatro tipos saem resolvidos pelo nome, na ordem de alcance',
+confere('os cinco tipos saem resolvidos pelo nome, na ordem de alcance',
     array_keys(categoriasDeFeriado($db)),
-    ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal', 'Ponto Facultativo']);
-confere('e as quatro são protegidas', array_values(array_unique(
+    ['Feriado Nacional', 'Feriado Estadual', 'Feriado Municipal', 'Ponto Facultativo', 'Feriado Escolar']);
+confere('e as cinco são protegidas', array_values(array_unique(
     array_map(static fn ($c) => (int) $c['protegida'], categoriasDeFeriado($db))
 )), [1]);
 // Elas saíram da tela de Legenda, mas não do papel: é `na_legenda` que põe cada
 // uma na legenda do calendário impresso, e some daqui é sumir do documento
 // homologado sem ninguém notar.
-confere('e as quatro continuam na legenda impressa', array_values(array_unique(
+confere('e as cinco continuam na legenda impressa', array_values(array_unique(
     array_map(static fn ($c) => (int) $c['na_legenda'], categoriasDeFeriado($db))
 )), [1]);
 // A tela de Legenda lista só o que se cadastra — o mesmo filtro que ela usa.
 confere('e nenhuma aparece no cadastro de legendas',
     (int) $db->query('SELECT COUNT(*) FROM categorias WHERE protegida = 0 AND nome IN
-        ("Feriado Nacional","Feriado Estadual","Feriado Municipal","Ponto Facultativo")')->fetchColumn(), 0);
+        ("Feriado Nacional","Feriado Estadual","Feriado Municipal","Ponto Facultativo",
+         "Feriado Escolar")')->fetchColumn(), 0);
 // Nenhuma das quatro se escolhe num evento: quem as aplica é o cadastro de
 // feriados, e as emendas do ano entram lá como Ponto Facultativo.
 confere('nenhuma delas é escolhível num evento', array_keys(array_filter(
     categoriasDeFeriado($db), static fn ($c) => (int) $c['oculta'] === 0
 )), []);
+
+// O Feriado Escolar é o tipo da instituição — o Dia do Professor é o caso —, e
+// não da norma civil. Entrou depois dos outros quatro e por isso ficou com a
+// prioridade logo abaixo deles.
+confere('o Feriado Escolar é um tipo cadastrável de feriado',
+    in_array('Feriado Escolar', nomesDeFeriado(), true), true);
+confere('com prioridade abaixo dos civis e do ponto facultativo', array_map(
+    static fn (array $c): int => (int) $c['prioridade'], categoriasDeFeriado($db)
+), ['Feriado Nacional' => 99, 'Feriado Estadual' => 98, 'Feriado Municipal' => 97,
+    'Ponto Facultativo' => 96, 'Feriado Escolar' => 95]);
+confere('não conta como dia letivo, como todo feriado',
+    (int) categoriasDeFeriado($db)['Feriado Escolar']['letivo'], 0);
+// O teto das editáveis desceu de 95 para 94 justamente para não empatar com ele:
+// no empate a cor do dia sairia da ordem de leitura, não de uma regra.
+confere('e nenhuma categoria editável alcança a prioridade dele',
+    PRIORIDADE_MAX < (int) categoriasDeFeriado($db)['Feriado Escolar']['prioridade'], true);
+confere('o seed não deixa nenhuma editável acima do teto',
+    (int) $db->query('SELECT COUNT(*) FROM categorias WHERE protegida = 0 AND prioridade > '
+        . PRIORIDADE_MAX)->fetchColumn(), 0);
+
+// Um feriado escolar pintando o dia: é o motor que aplica a cor a partir do
+// cadastro, como faz com os outros tipos.
+confere('o motor pinta o dia com a cor do tipo escolhido', (function () use ($db) {
+    $cat = categoriaId($db, 'Feriado Escolar');
+    $db->prepare('INSERT INTO feriados (nome, tipo, dia, mes, categoria_id) VALUES (?,?,?,?,?)')
+       ->execute(['TESTE Dia do Professor', 'fixo', 15, 10, $cat]);
+    $cal = calendarioDeTeste($db, 'CURSO ESCOLAR');
+    $d   = Engine::paraCalendario($db, $cal)->dia('2026-10-15');
+    $db->exec("DELETE FROM feriados WHERE nome LIKE 'TESTE %'");
+    return [$d['categoria']['nome'], $d['letivo']];
+})(), ['Feriado Escolar', false]);
 // Regressão: o tipo era achado por LIKE 'Feriado%', então renomear a categoria
 // na tela de Legenda sumia com ele da lista e o feriado era reatribuído em
 // silêncio ao primeiro tipo restante. Agora a tela de Legenda não renomeia, e
