@@ -288,6 +288,22 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
     return a + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
   }
   function br(s) { var p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+
+  /**
+   * Quantos dias a faixa cobre, contando as duas pontas: de 04/01 a 29/01 são
+   * 26 dias, não 25. São dias de calendário, e não dias letivos — o período é o
+   * que se escolheu aqui, e quanto dele conta como aula depende da categoria, do
+   * semestre e dos feriados, que só o servidor sabe.
+   *
+   * A conta vai em UTC de propósito: montada com o fuso local, uma faixa que
+   * atravessasse mudança de horário daria 25,96 dias e o arredondamento viraria
+   * loteria.
+   */
+  function dias(a, b) {
+    var pa = a.split('-'), pb = b.split('-');
+    var ms = Date.UTC(pb[0], pb[1] - 1, pb[2]) - Date.UTC(pa[0], pa[1] - 1, pa[2]);
+    return Math.round(ms / 86400000) + 1;
+  }
   function dentro(dia, a, b) { return dia >= (a < b ? a : b) && dia <= (a < b ? b : a); }
   function emFaixa(dia) {
     return faixas.some(function (f) { return dia >= f.inicio && dia <= f.fim; });
@@ -305,7 +321,18 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
     }
     faixas.forEach(function (f, i) {
       var li = document.createElement('li');
-      li.innerHTML = '<span>' + (f.inicio === f.fim ? br(f.inicio) : br(f.inicio) + ' a ' + br(f.fim)) + '</span>';
+      var texto = document.createElement('span');
+      texto.textContent = f.inicio === f.fim ? br(f.inicio) : br(f.inicio) + ' a ' + br(f.fim);
+      // Só na faixa: depois de uma data sozinha, "(1 dia)" não informa nada.
+      if (f.inicio !== f.fim) {
+        var n = dias(f.inicio, f.fim);
+        var quantos = document.createElement('span');
+        quantos.className = 'quantos-dias';
+        quantos.textContent = '(' + n + (n === 1 ? ' dia)' : ' dias)');
+        texto.appendChild(document.createTextNode(' '));
+        texto.appendChild(quantos);
+      }
+      li.appendChild(texto);
       var x = document.createElement('button');
       x.type = 'button';
       x.className = 'btn-close btn-close-sm';

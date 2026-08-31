@@ -351,14 +351,24 @@ function niveisParaBanco(array $marcados): ?string
 }
 
 /**
- * Ano de uma tela que trabalha por ano. O <input type="number"> já limita a
- * 2000–2100, mas a URL é digitável à mão: fora dessa faixa a grade sai de um
- * ano que calendário nenhum vai ter, e a tela fica sem saída. Fora da faixa,
- * vale o padrão.
+ * A faixa de anos que o sistema aceita. Fica aqui porque três coisas precisam
+ * concordar sobre ela: o `min`/`max` dos campos de ano, a peneira de quem chega
+ * pela URL e a lista de datas sugeridas que o formulário de calendário carrega.
+ * Escritas em três lugares, elas divergiram — as sugestões cobriam sete anos, e
+ * ao passar do último o formulário parava de acompanhar o ano em silêncio.
+ */
+const ANO_MIN = 2000;
+const ANO_MAX = 2100;
+
+/**
+ * Ano de uma tela que trabalha por ano. O <input type="number"> já limita à
+ * faixa, mas a URL é digitável à mão: fora dela a grade sai de um ano que
+ * calendário nenhum vai ter, e a tela fica sem saída. Fora da faixa, vale o
+ * padrão.
  */
 function anoDaTela(int $bruto, int $padrao): int
 {
-    return ($bruto >= 2000 && $bruto <= 2100) ? $bruto : $padrao;
+    return ($bruto >= ANO_MIN && $bruto <= ANO_MAX) ? $bruto : $padrao;
 }
 
 function dataBr(?string $iso): string
@@ -605,7 +615,7 @@ function bimestresDoFormulario(string $regime, int $ano): array
         }
         foreach ([$inicio, $fim] as $data) {
             if ((int) substr($data, 0, 4) !== $ano) {
-                return [[], "No {$rot}, a data {$data} está fora de {$ano}."];
+                return [[], "No {$rot}, a data " . dataBr($data) . " está fora de {$ano}."];
             }
         }
         $anterior      = $fim;

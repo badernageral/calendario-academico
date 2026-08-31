@@ -196,6 +196,9 @@ body {
   background: #f8fafc; font-size: 0.82rem;
 }
 .faixas-escolhidas li span { flex: 1; }
+/* Quantos dias a faixa cobre. Discreto: a data é o que se lê, o número é
+   conferência — e nas faixas longas é ele que denuncia o dedo errado. */
+.faixas-escolhidas li .quantos-dias { color: #64748b; font-size: 0.92em; }
 .faixas-escolhidas li .btn-close { font-size: 0.6rem; }
 .faixas-escolhidas .vazia {
   border-style: dashed; color: #94a3b8; background: transparent; justify-content: center;

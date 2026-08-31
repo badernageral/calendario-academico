@@ -818,12 +818,12 @@ confere('oito datas do ano certo passam', $comPost($oitoDatas(2026), 'anual', 20
 // aviso de "semestres não informados" aparecia, porque eles estavam lá.
 confere('as do ano anterior não',
     $comPost($oitoDatas(2025), 'anual', 2026)[1],
-    'No 1º bimestre, a data 2025-02-02 está fora de 2026.');
+    'No 1º bimestre, a data 02/02/2025 está fora de 2026.');
 confere('nem uma só data escapando do ano', (function () use ($comPost, $oitoDatas) {
     $datas = $oitoDatas(2026);
     $datas['bim4_fim'] = '2027-01-15';
     return $comPost($datas, 'anual', 2026)[1];
-})(), 'No 4º bimestre, a data 2027-01-15 está fora de 2026.');
+})(), 'No 4º bimestre, a data 15/01/2027 está fora de 2026.');
 confere('e nada é devolvido para gravar quando há erro',
     $comPost($oitoDatas(2025), 'anual', 2026)[0], []);
 // O rótulo do erro fala o vocabulário do regime: no semestral o número do
@@ -831,7 +831,7 @@ confere('e nada é devolvido para gravar quando há erro',
 // campos ao mesmo tempo.
 confere('o erro nomeia o bimestre pelo regime do curso',
     $comPost($oitoDatas(2025), 'semestral', 2026)[1],
-    'No 1º bimestre do 1º semestre, a data 2025-02-02 está fora de 2026.');
+    'No 1º bimestre do 1º semestre, a data 02/02/2025 está fora de 2026.');
 
 grupo('Datas que andam de um ano para outro');
 confere('dia e mês ficam onde estavam', deslocarAno('2026-03-15', 1), '2027-03-15');

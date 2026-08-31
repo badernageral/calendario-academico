@@ -95,7 +95,7 @@ if ($c_novo) {
               <label class="form-label">Ano</label>
               <?php if ($c_novo): ?>
                 <input type="number" name="ano" id="anoCalendario" class="form-control"
-                       value="<?= $c_ano ?>" min="2000" max="2100" required>
+                       value="<?= $c_ano ?>" min="<?= ANO_MIN ?>" max="<?= ANO_MAX ?>" required>
               <?php else: ?>
                 <input class="form-control" value="<?= $c_ano ?>" disabled>
               <?php endif; ?>

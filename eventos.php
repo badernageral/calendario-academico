@@ -88,7 +88,7 @@ head('Eventos globais', 'base');
       <div>
         <label class="form-label mb-1">Ano</label>
         <input type="number" name="ano" class="form-control form-control-sm" style="width:110px"
-               value="<?= $ano ?>" min="2000" max="2100" onchange="this.form.submit()">
+               value="<?= $ano ?>" min="<?= ANO_MIN ?>" max="<?= ANO_MAX ?>" onchange="this.form.submit()">
       </div>
       <div class="form-check mb-1">
         <input class="form-check-input" type="checkbox" name="feriados" value="1" id="verFeriados"

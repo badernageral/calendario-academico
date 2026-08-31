@@ -23,6 +23,11 @@
       var el = form.querySelector('[data-rotulo="bim' + n + '_inicio"]');
       return el ? el.textContent.replace(/\s*—\s*início\s*$/, '') : n + 'º bimestre';
     }
+    // O <input type="date"> guarda em ISO, mas a mensagem é para ler: a mesma
+    // dd/mm/aaaa que o dataBr() do servidor escreve na mensagem gêmea desta.
+    function brasileira(iso) {
+      return iso.split('-').reverse().join('/');
+    }
     // Na criação o ano é um campo que ainda muda; na tela de dados ele é fixo e
     // vem no data-ano do formulário, porque lá o campo aparece desabilitado e
     // desabilitado não se lê pelo name.
@@ -50,7 +55,7 @@
         }
         var fora = [i, f].filter(function (d) { return parseInt(d.slice(0, 4), 10) !== doAno; });
         if (doAno && fora.length) {
-          erro = 'No ' + rotulo(n) + ', a data ' + fora[0] + ' está fora de ' + doAno + '.';
+          erro = 'No ' + rotulo(n) + ', a data ' + brasileira(fora[0]) + ' está fora de ' + doAno + '.';
           break;
         }
         anterior = f;

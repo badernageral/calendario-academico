@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // A mesma faixa do campo do formulário: um ano fora dela geraria um
         // calendário que nenhuma tela por ano alcança depois.
         if ($ano !== anoDaTela($ano, 0)) {
-            flash('O ano precisa ficar entre 2000 e 2100.', 'erro');
+            flash('O ano precisa ficar entre ' . ANO_MIN . ' e ' . ANO_MAX . '.', 'erro');
             redirect('calendarios.php?novo=1');
         }
         // Os rótulos do erro dependem do regime do curso escolhido.
@@ -118,9 +118,14 @@ $cals   = $db->query(
 // O formulário abre com as datas prováveis dos bimestres já preenchidas. Como
 // elas dependem do ano — e dos feriados dele —, vai uma sugestão por ano à mão
 // do formulário, para as datas acompanharem a troca do ano sem recarregar.
+//
+// Cobre exatamente a faixa que o campo de ano aceita, e não uma janela em volta
+// do ano corrente: com sete anos, quem passasse do último via as datas pararem
+// de acompanhar sem nada dizer por quê. São 101 anos, 5 ms e 21 KB — e some a
+// borda, porque não existe ano digitável que fique de fora.
 $anoPadrao = (int) date('Y');
 $sugestoes = [];
-for ($a = $anoPadrao - 1; $a <= $anoPadrao + 5; $a++) {
+for ($a = ANO_MIN; $a <= ANO_MAX; $a++) {
     $sugestoes[$a] = bimestresSugeridos($db, $a);
 }
 
@@ -208,11 +213,13 @@ head('Calendários', 'calendarios');
 
 <script>
 /**
- * Duas coisas mudam sozinhas neste formulário:
+ * O que muda sozinho neste formulário:
  *
  * - trocar o **ano** troca as datas sugeridas dos bimestres. As sugestões vêm
- *   prontas do servidor, que é quem sabe onde caem os feriados de cada ano; se
- *   o ano digitado estiver fora da lista, as datas ficam como estão;
+ *   prontas do servidor, que é quem sabe onde caem os feriados de cada ano, e
+ *   cobrem toda a faixa que o campo aceita — nenhum ano digitável fica de fora;
+ * - trocar o **ano** acerta também o ano do "local e data", que é texto livre e
+ *   ficava para trás;
  * - trocar o **curso** troca os rótulos dos campos, porque um curso anual tem
  *   1º a 4º bimestre e um semestral tem 1º e 2º em cada semestre. As datas não
  *   se mexem: o que muda é só como cada campo se chama.
@@ -227,13 +234,33 @@ head('Calendários', 'calendarios');
   if (!ano || !curso) { return; }
 
   ano.addEventListener('change', function () {
+    // Sem sugestão o ano está fora da faixa que o campo aceita, e aí nada se
+    // mexe: acertar o texto e deixar as datas do ano anterior seria pior do que
+    // não acertar nada, porque as duas coisas passariam a discordar na tela.
     var s = SUGESTOES[ano.value];
     if (!s) { return; }
+
+    acertarLocalEData();
     Object.keys(s).forEach(function (campo) {
       var el = ano.form.querySelector('[name="' + campo + '"]');
       if (el) { el.value = s[campo]; }
     });
   });
+
+  /**
+   * O "local e data" acompanha o ano digitado: trocar 2026 por 2027 no campo do
+   * ano deixava "Lagoa da Confusão, agosto de 2026" para trás, e quem cadastrava
+   * tinha de corrigir à mão — quando lembrava.
+   *
+   * Troca só o ano, e o último que houver no texto: o resto é a cidade e o mês,
+   * que quem cadastra pode ter ajustado e não são nossos para reescrever. Texto
+   * sem ano nenhum fica como está, porque aí não há o que acertar.
+   */
+  function acertarLocalEData() {
+    var campo = ano.form.querySelector('[name="local_texto"]');
+    if (!campo || !/\d{4}/.test(campo.value)) { return; }
+    campo.value = campo.value.replace(/(\d{4})(?!.*\d{4})/, ano.value);
+  }
 
   function rotular() {
     var r = ROTULOS[REGIMES[curso.value] || 'semestral'];

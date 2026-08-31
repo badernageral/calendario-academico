@@ -109,7 +109,7 @@ function tratarPostEvento(PDO $db, int $ano, ?int $calendarioId, string $voltarP
     foreach ($faixas as $f) {
         foreach ([$f['inicio'], $f['fim']] as $data) {
             if ((int) substr($data, 0, 4) !== $ano) {
-                flash("A data {$data} está fora de {$ano}, o ano deste calendário.", 'erro');
+                flash('A data ' . dataBr($data) . " está fora de {$ano}, o ano deste calendário.", 'erro');
                 redirect($volta);
             }
         }
