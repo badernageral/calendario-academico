@@ -1,6 +1,14 @@
 <?php
 declare(strict_types=1);
 
+/** Recusa o pedido: guarda o que foi digitado, avisa e devolve ao formulário. */
+function recusarFeriado(string $motivo, string $volta): never
+{
+    guardarPost();
+    flash($motivo, 'erro');
+    redirect($volta);
+}
+
 /**
  * Tratamento POST do cadastro de feriados, compartilhado pelas três telas que
  * mostram a grade do ano: o cadastro de Feriados, a de Eventos globais e a de
@@ -41,12 +49,10 @@ function tratarPostFeriado(PDO $db, string $voltarPara): void
     // como um feriado nacional virava estadual sem ninguém ver.
     $tipos = array_map(static fn ($c) => (int) $c['id'], categoriasDeFeriado($db));
     if (!in_array($cat, $tipos, true)) {
-        flash('Escolha o tipo do feriado.', 'erro');
-        redirect($volta);
+        recusarFeriado('Escolha o tipo do feriado.', $volta);
     }
     if ($nome === '') {
-        flash('Informe o nome do feriado.', 'erro');
-        redirect($volta);
+        recusarFeriado('Informe o nome do feriado.', $volta);
     }
 
     if ($tipo === 'fixo') {
@@ -54,15 +60,13 @@ function tratarPostFeriado(PDO $db, string $voltarPara): void
         $mes = postInt('mes', 0);
         // Aceita 29/02: o dia simplesmente não aparece em ano comum.
         if ($mes < 1 || $mes > 12 || $dia < 1 || $dia > (int) date('t', mktime(0, 0, 0, $mes ?: 1, 1, 2024))) {
-            flash('Dia ou mês inválido para uma data fixa.', 'erro');
-            redirect($volta);
+            recusarFeriado('Dia ou mês inválido para uma data fixa.', $volta);
         }
         $campos = [$nome, 'fixo', $dia, $mes, null, $cat];
     } else {
         $desl = postInt('deslocamento', 0);
         if ($desl < -200 || $desl > 200) {
-            flash('O deslocamento em relação à Páscoa precisa ficar entre -200 e 200 dias.', 'erro');
-            redirect($volta);
+            recusarFeriado('O deslocamento em relação à Páscoa precisa ficar entre -200 e 200 dias.', $volta);
         }
         $campos = [$nome, 'movel', null, null, $desl, $cat];
     }

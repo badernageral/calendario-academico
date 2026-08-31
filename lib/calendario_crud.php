@@ -20,6 +20,7 @@ function tratarPostCalendario(PDO $db, array $cal, string $voltarPara): void
 
     [$bimestres, $erro] = bimestresDoFormulario((string) $cal['curso_regime'], (int) $cal['ano']);
     if ($erro !== '') {
+        guardarPost();
         flash($erro, 'erro');
         // Reabre o modal: o erro é das datas, e é nelas que se mexe.
         redirect($voltarPara . '&editar_cal=1');

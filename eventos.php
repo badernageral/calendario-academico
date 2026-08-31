@@ -4,7 +4,12 @@ require __DIR__ . '/lib/eventos_crud.php';
 require __DIR__ . '/lib/feriados_crud.php';
 
 $db  = db();
-$ano = anoDaTela(getInt('ano') ?: (int) (postInt('ano') ?: (int) date('Y')), (int) date('Y'));
+// O ano fica guardado na sessão: quem está montando 2027 sai daqui e volta sem
+// ter de escolher o ano de novo. O `ano` do POST é dos formulários de copiar e
+// limpar, que levam escondido o ano em que a tela está.
+$ano = getInt('ano') === 0 && ($p = postInt('ano')) !== null
+    ? anoDaTela((int) $p, (int) date('Y'))
+    : anoLembrado('globais', (int) date('Y'));
 
 // A caixa "Exibir feriados" nasce marcada: a grade desta tela é o ano inteiro,
 // e sem os feriados ela mostra um ano que não existe — os globais caem em cima

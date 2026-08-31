@@ -109,6 +109,15 @@ function sessao(): void
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
+    // Pela linha de comando não há navegador nem cookie, e a saída já começou a
+    // sair — iniciar sessão de verdade só renderia "headers already sent". A
+    // suíte e o importador da planilha usam $_SESSION como array comum, que é
+    // tudo o que flash() e guardarPost() precisam. Mesmo desvio que lib/boot.php
+    // faz no portão de entrada, e pelo mesmo motivo.
+    if (PHP_SAPI === 'cli') {
+        $_SESSION ??= [];
+        return;
+    }
     ini_set('session.use_strict_mode', '1');
     session_set_cookie_params([
         'httponly' => true,
@@ -192,6 +201,75 @@ function flash(?string $msg = null, string $tipo = 'ok'): ?array
     $f = $_SESSION['flash'] ?? null;
     unset($_SESSION['flash']);
     return $f;
+}
+
+/**
+ * Guarda o POST recusado para o formulário voltar preenchido com ele.
+ *
+ * Um pedido recusado termina em redirect — é o que impede o F5 de regravar —, e
+ * o redirect joga fora o que foi digitado: o formulário se remonta do banco, ou
+ * vazio. Quem escreveu uma descrição longa e escolheu cinco períodos recomeçava
+ * do zero por causa de um campo errado.
+ *
+ * Anda junto do flash(), na mesma sessão e pelo mesmo motivo, e some na primeira
+ * leitura: só a tela para onde o erro mandou é que o recebe.
+ */
+function guardarPost(): void
+{
+    sessao();
+    // Senha não volta para a tela: guardá-la poria a senha em claro no arquivo
+    // de sessão e depois dentro do HTML. O campo é `type=password`, que o
+    // navegador não repreenche mesmo — quem foi recusado redigita as duas, que
+    // é o comportamento de qualquer formulário de senha.
+    $_SESSION['post_recusado'] = array_diff_key($_POST, array_flip(['senha', 'senha2', '_csrf']));
+}
+
+/**
+ * O POST recusado, uma vez só. Vazio quando a tela não veio de uma recusa — e aí
+ * o formulário se monta como sempre, do banco ou em branco.
+ *
+ * $acao é de quem está perguntando: a tela de um calendário desenha três modais
+ * na mesma página — calendário, evento e feriado —, e sem essa conferência a
+ * primeira a perguntar levava o que era da outra. Só a dona consome; para as
+ * demais o guardado continua lá, e some quando a dona o pega.
+ */
+function postGuardado(?string $acao = null): array
+{
+    sessao();
+    $p = $_SESSION['post_recusado'] ?? [];
+    if (!is_array($p) || $p === []) {
+        return [];
+    }
+    if ($acao !== null && ($p['acao'] ?? null) !== $acao) {
+        return [];
+    }
+    unset($_SESSION['post_recusado']);
+    return $p;
+}
+
+/**
+ * Os acessores de um formulário que volta preenchido depois de uma recusa.
+ *
+ * Devolve, nesta ordem: o valor de um campo, se uma caixa está marcada, se a
+ * tela veio mesmo de uma recusa e o POST inteiro (para campos em array, como a
+ * lista de níveis).
+ *
+ * A distinção "veio de recusa" não é detalhe: caixa desmarcada não é enviada, e
+ * sem ela não daria para saber se a ausência é escolha de quem cadastrou ou
+ * simplesmente não há dado nenhum guardado.
+ *
+ * @return array{0: callable(string, string): string, 1: callable(string, bool): bool, 2: bool, 3: array}
+ */
+function formDeVolta(string $acao): array
+{
+    $post    = postGuardado($acao);
+    $devolta = $post !== [];
+    return [
+        static fn (string $campo, string $padrao = ''): string => (string) ($post[$campo] ?? $padrao),
+        static fn (string $campo, bool $padrao): bool => $devolta ? isset($post[$campo]) : $padrao,
+        $devolta,
+        $post,
+    ];
 }
 
 /**
@@ -369,6 +447,34 @@ const ANO_MAX = 2100;
 function anoDaTela(int $bruto, int $padrao): int
 {
     return ($bruto >= ANO_MIN && $bruto <= ANO_MAX) ? $bruto : $padrao;
+}
+
+/**
+ * O ano de uma tela que trabalha por ano, lembrado na sessão.
+ *
+ * A tela reabre no ano escolhido da última vez, e não sempre no corrente: quem
+ * está montando 2027 sai para conferir um curso e volta, e voltar em 2026 fazia
+ * trocar o ano de novo a cada ida e vinda.
+ *
+ * O ano pedido pela URL manda e fica guardado; sem ele, vale o guardado; sem
+ * nenhum dos dois, o padrão. Passa pela mesma peneira de anoDaTela(), então o
+ * que a sessão trouxer de estranho — de um banco importado, de uma sessão
+ * antiga — não escapa da faixa.
+ *
+ * $chave separa uma tela da outra: eventos globais e feriados podem estar em
+ * anos diferentes sem se atrapalhar.
+ */
+function anoLembrado(string $chave, int $padrao): int
+{
+    sessao();
+    $k = 'ano:' . $chave;
+    // Só um ano válido substitui o lembrado. Uma URL com ano fora da faixa é
+    // engano de quem digitou, e apagar por causa dela o ano em que a pessoa
+    // estava trabalhando seria trocar um engano pequeno por um estrago.
+    if (($pedido = getInt('ano')) !== 0 && $pedido === anoDaTela($pedido, 0)) {
+        $_SESSION[$k] = $pedido;
+    }
+    return anoDaTela((int) ($_SESSION[$k] ?? $padrao), $padrao);
 }
 
 function dataBr(?string $iso): string

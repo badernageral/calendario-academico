@@ -189,7 +189,10 @@ function foot(): void
         var cor = item.dataset.cor || '';
 
         campo.value        = item.dataset.valor || '';
-        rotulo.textContent = item.dataset.nome;
+        // data-efeito é opcional: o seletor de tipo de feriado não tem, e aí o
+        // rótulo continua sendo só o nome.
+        rotulo.textContent = item.dataset.nome
+            + (item.dataset.efeito ? ' — ' + item.dataset.efeito : '');
         quadro.style.background = cor;
         quadro.classList.toggle('sem-cor', cor === '');
 

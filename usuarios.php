@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             default => '',
         };
         if ($erro !== '') {
+            guardarPost();
             flash($erro, 'erro');
             redirect($volta);
         }
@@ -48,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('Usuário cadastrado.');
             }
         } catch (PDOException $e) {
+            guardarPost();
             flash('Já existe um usuário com o login "' . $usuario . '".', 'erro');
             redirect($volta);
         }
@@ -82,6 +84,9 @@ usort($usuarios, static fn ($a, $b) => compararNomes($a['nome'], $b['nome']));
 
 $abrirModal = $edit !== null || get('novo') !== '';
 $erroModal  = modalAbrindo() ? erroParaModal() : '';
+// O formulário volta com o que foi digitado — menos a senha, que guardarPost()
+// não guarda e o navegador não repreenche.
+[$u_val, $u_marcada] = formDeVolta('salvar');
 
 head('Usuários', 'usuarios');
 ?>
@@ -166,12 +171,12 @@ head('Usuários', 'usuarios');
           <div class="row g-3">
             <div class="col-md-7">
               <label class="form-label" for="u_nome">Nome</label>
-              <input name="nome" id="u_nome" class="form-control" required value="<?= e($edit['nome'] ?? '') ?>">
+              <input name="nome" id="u_nome" class="form-control" required value="<?= e($u_val('nome', (string) ($edit['nome'] ?? ''))) ?>">
             </div>
             <div class="col-md-5">
               <label class="form-label" for="u_usuario">Usuário</label>
               <input name="usuario" id="u_usuario" class="form-control" required
-                     autocomplete="username" value="<?= e($edit['usuario'] ?? '') ?>">
+                     autocomplete="username" value="<?= e($u_val('usuario', (string) ($edit['usuario'] ?? ''))) ?>">
             </div>
 
             <div class="col-md-6">
@@ -191,7 +196,7 @@ head('Usuários', 'usuarios');
             <div class="col-12">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="ativo" id="u_ativo"
-                       <?= (int) $edit['ativo'] === 1 ? 'checked' : '' ?>>
+                       <?= $u_marcada('ativo', (int) $edit['ativo'] === 1) ? 'checked' : '' ?>>
                 <label class="form-check-label" for="u_ativo">Ativo</label>
               </div>
               <div class="form-text">

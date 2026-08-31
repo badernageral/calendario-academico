@@ -361,6 +361,78 @@ confere('sozinha, ela ainda fecha a própria transação', (function () use ($db
     return $db->inTransaction();
 })(), false);
 
+grupo('O efeito da categoria na conta de dias, em uma palavra');
+// A coluna `letivo` tem três estados e nenhum se lê no nome da categoria. Quem
+// escolhe a cor de um evento precisa saber antes de escolher, não depois de ver
+// o total mudar.
+confere('1 obriga o dia a contar',        efeitoDaCategoria(1), 'Letivo');
+confere('0 obriga a não contar',          efeitoDaCategoria(0), 'Não letivo');
+confere('NULL não mexe na conta',         efeitoDaCategoria(null), 'Neutro');
+// O SQLite devolve as colunas como texto: o rótulo não pode depender do tipo.
+confere('e o texto do banco vale igual', [
+    efeitoDaCategoria('1'), efeitoDaCategoria('0'),
+], ['Letivo', 'Não letivo']);
+confere('as de fábrica saem como se espera', (function () {
+    $db = bancoLimpo();
+    $out = [];
+    foreach (['Recesso', 'Exame Final', 'Férias', CAT_SEMESTRE] as $nome) {
+        $st = $db->prepare('SELECT letivo FROM categorias WHERE nome = ?');
+        $st->execute([$nome]);
+        $out[$nome] = efeitoDaCategoria($st->fetchColumn());
+    }
+    return $out;
+})(), ['Recesso' => 'Não letivo', 'Exame Final' => 'Neutro',
+       'Férias' => 'Não letivo', CAT_SEMESTRE => 'Neutro']);
+
+grupo('Copiar eventos de um calendário para outro');
+$db  = bancoLimpo();
+$origem  = calendarioBimestral($db, 'anual', BIMESTRES_TESTE, 'CURSO ORIGEM');
+$destino = calendarioBimestral($db, 'anual', BIMESTRES_TESTE, 'CURSO DESTINO');
+evento($db, $origem, 'Reunião comum',  ['2026-03-10']);
+evento($db, $origem, 'Sábado letivo',  ['2026-03-07'], ['conta_letivo' => 1, 'repoe_dow' => 1]);
+evento($db, $origem, 'Sem data', []);
+
+/** O que existe no calendário, por descrição. */
+$copiados = static function (PDO $db, int $cal): array {
+    $st = $db->prepare('SELECT descricao FROM eventos WHERE calendario_id = ? ORDER BY id');
+    $st->execute([$cal]);
+    return $st->fetchAll(PDO::FETCH_COLUMN);
+};
+
+// Padrão: a reposição fica para trás. Um "sábado com horário de segunda" repõe
+// uma segunda perdida num feriado daquele ano; no ano seguinte esse feriado cai
+// noutro dia da semana, e o sábado copiado repõe um dia que não faltou.
+confere('por padrão a reposição não vem junto', (function () use ($db, $origem, $destino, $copiados) {
+    copiarEventos($db, $origem, $destino, 2027);
+    return $copiados($db, $destino);
+})(), ['Reunião comum']);
+
+// Pedindo, ela vem — e traz o repoe_dow, senão viraria um sábado letivo mudo,
+// que é o que a validação do formulário recusa.
+$db      = bancoLimpo();
+$origem  = calendarioBimestral($db, 'anual', BIMESTRES_TESTE, 'CURSO ORIGEM');
+$destino = calendarioBimestral($db, 'anual', BIMESTRES_TESTE, 'CURSO DESTINO');
+evento($db, $origem, 'Reunião comum', ['2026-03-10']);
+evento($db, $origem, 'Sábado letivo', ['2026-03-07'], ['conta_letivo' => 1, 'repoe_dow' => 1]);
+confere('marcado, ela vem', (function () use ($db, $origem, $destino, $copiados) {
+    copiarEventos($db, $origem, $destino, 2027, true);
+    return $copiados($db, $destino);
+})(), ['Reunião comum', 'Sábado letivo']);
+confere('e chega com a reposição preenchida', (function () use ($db, $destino) {
+    $st = $db->prepare("SELECT repoe_dow, conta_letivo FROM eventos
+                         WHERE calendario_id = ? AND descricao = 'Sábado letivo'");
+    $st->execute([$destino]);
+    $e = $st->fetch();
+    return [(int) $e['repoe_dow'], (int) $e['conta_letivo']];
+})(), [1, 1]);
+// A data anda um ano, como a de qualquer evento copiado.
+confere('com a data deslocada para o ano novo', (function () use ($db, $destino) {
+    $st = $db->prepare("SELECT d.inicio FROM evento_datas d JOIN eventos e ON e.id = d.evento_id
+                         WHERE e.calendario_id = ? AND e.descricao = 'Sábado letivo'");
+    $st->execute([$destino]);
+    return $st->fetchColumn();
+})(), '2027-03-07');
+
 grupo('A ordem da lista do mês');
 $db  = bancoLimpo();
 $cal = calendarioDeTeste($db);
@@ -470,6 +542,101 @@ confere('sábado sem reposição conta como dia letivo',
     $e3->contagemSemestre(1)['por_dow'][6], 1);
 confere('mas fica de fora da contagem por horário',
     $e3->contagemSemestre(1)['total'] - $e3->contagemHorarioSemestre(1)['total'], 1);
+
+grupo('O ano da tela fica lembrado na sessão');
+// Quem está montando 2027 sai para conferir um curso e volta; voltar em 2026
+// fazia trocar o ano de novo a cada ida e vinda.
+$_SESSION = [];
+$_GET = [];
+confere('sem nada pedido nem lembrado, vale o padrão',
+    anoLembrado('teste', 2026), 2026);
+confere('o ano pedido pela URL passa a valer', (function () {
+    $_GET['ano'] = '2030';
+    return anoLembrado('teste', 2026);
+})(), 2030);
+confere('e fica lembrado depois que a URL não pede mais', (function () {
+    $_GET = [];
+    return anoLembrado('teste', 2026);
+})(), 2030);
+// URL com ano fora da faixa é engano de quem digitou; apagar por causa dela o
+// ano em que a pessoa trabalhava seria trocar um engano pequeno por um estrago.
+confere('ano inválido não vira o da tela', (function () {
+    $_GET['ano'] = '2101';
+    return anoLembrado('teste', 2026);
+})(), 2030);
+confere('nem apaga o que estava lembrado', (function () {
+    $_GET = [];
+    return anoLembrado('teste', 2026);
+})(), 2030);
+// Cada tela lembra o seu: eventos globais e feriados podem estar em anos
+// diferentes sem se atrapalhar.
+confere('cada tela guarda o próprio ano', [
+    anoLembrado('outra', 2026), anoLembrado('teste', 2026),
+], [2026, 2030]);
+$_SESSION = [];
+$_GET = [];
+
+grupo('O formulário recusado volta com o que foi digitado');
+// Um pedido recusado termina em redirect — é o que impede o F5 de regravar —, e
+// o redirect joga fora o que foi digitado. O POST fica guardado na sessão, do
+// mesmo jeito que o aviso, e some na primeira leitura.
+$_SESSION = [];
+confere('sem recusa, não há nada guardado', postGuardado(), []);
+confere('o que foi guardado volta inteiro', (function () {
+    $_POST = ['descricao' => 'Semana de provas', 'repoe_dow' => '3', 'nivel' => ['superior']];
+    guardarPost();
+    return postGuardado();
+})(), ['descricao' => 'Semana de provas', 'repoe_dow' => '3', 'nivel' => ['superior']]);
+confere('e some na segunda leitura, para não vazar na próxima tela',
+    postGuardado(), []);
+
+// A tela de um calendário desenha três modais na mesma página. Sem perguntar de
+// quem é o guardado, a primeira a montar levava o que era da outra.
+confere('só a modal dona do POST o recebe', (function () {
+    $_POST = ['acao' => 'salvar_evento', 'descricao' => 'Semana de provas'];
+    guardarPost();
+    return [
+        postGuardado('salvar_calendario'),                 // não é dela
+        postGuardado('salvar_feriado'),                    // nem dela
+        postGuardado('salvar_evento')['descricao'] ?? '',   // desta, sim
+        postGuardado('salvar_evento'),                     // e já foi consumido
+    ];
+})(), [[], [], 'Semana de provas', []]);
+
+// Senha não volta para a tela: guardá-la a poria em claro no arquivo de sessão
+// e depois dentro do HTML.
+confere('a senha não é guardada', (function () {
+    $_POST = ['acao' => 'salvar', 'usuario' => 'maria', 'senha' => 'segredo', 'senha2' => 'segredo'];
+    guardarPost();
+    return array_keys(postGuardado('salvar'));
+})(), ['acao', 'usuario']);
+$_POST = [];
+
+grupo('Reposição conta sempre como dia letivo');
+// O par do grupo abaixo, na direção contrária: lá é fim de semana letivo sem
+// reposição; aqui é reposição sem letivo. Um dia que cumpre o horário de outro é
+// dia de aula — é para isso que ele existe.
+$db  = bancoLimpo();
+$cal = calendarioDeTeste($db);
+$naoLetiva = categoriaId($db, 'Recesso');       // letivo = 0
+$neutra    = categoriaId($db, 'Exame Final');   // letivo = NULL
+
+// "Herdar da categoria" não basta: categoria nenhuma de fábrica obriga o dia a
+// contar, e a herança devolve a decisão à regra do dia da semana — que num
+// sábado responde "não", e o dia repunha sem contar.
+confere('herdar da categoria não obriga o dia a contar',
+    forcaDiaLetivo($db, null, $neutra), false);
+confere('nem herdando de uma categoria não letiva',
+    forcaDiaLetivo($db, null, $naoLetiva), false);
+// A categoria pode ser não letiva à vontade: o conta_letivo do evento passa na
+// frente dela, e é a mesma precedência que o motor aplica.
+confere('mas o conta_letivo do evento passa na frente dela',
+    forcaDiaLetivo($db, 1, $naoLetiva), true);
+confere('e o motor concorda: o sábado conta mesmo com categoria de Recesso', (function () use ($db, $cal, $naoLetiva) {
+    evento($db, $cal, 'Sábado que repõe', ['2026-03-07'],
+        ['categoria_id' => $naoLetiva, 'conta_letivo' => 1, 'repoe_dow' => 1]);
+    return Engine::paraCalendario($db, $cal)->dia('2026-03-07')['letivo'];
+})(), true);
 
 grupo('Fim de semana letivo tem de dizer que horário repõe');
 $db  = bancoLimpo();
@@ -921,6 +1088,27 @@ confere('e é um bcrypt que o password_verify percorre inteiro', (function () us
 // O usuário das contagens abaixo volta ao banco: os testes de cima o esvaziaram
 // para falar de custo de hash. O segundo é criado pela própria contagem.
 $novo = criarUsuario($db, 'José', 'jose', 'senha12345');
+
+// A caixa "Ativo" do formulário vale também na criação. Antes o INSERT omitia a
+// coluna e o DEFAULT 1 do schema decidia: desmarcá-la criava um usuário ativo
+// assim mesmo, e a caixa mentia sobre o que fazia.
+confere('nasce ativo quando não se diz nada', (function () use ($db) {
+    $u = criarUsuario($db, 'Padrão', 'padrao', 'senha12345');
+    $db->exec("DELETE FROM usuarios WHERE usuario = 'padrao'");
+    return (int) $u['ativo'];
+})(), 1);
+confere('e nasce inativo quando a caixa vem desmarcada', (function () use ($db) {
+    $u = criarUsuario($db, 'Desligado', 'desligado', 'senha12345', false);
+    $db->exec("DELETE FROM usuarios WHERE usuario = 'desligado'");
+    return (int) $u['ativo'];
+})(), 0);
+// Inativo não entra, mesmo com a senha certa — é o que a caixa promete.
+confere('e o inativo não consegue entrar', (function () use ($db) {
+    criarUsuario($db, 'Desligado', 'desligado', 'senha12345', false);
+    $r = autenticar($db, 'desligado', 'senha12345');
+    $db->exec("DELETE FROM usuarios WHERE usuario = 'desligado'");
+    return $r;
+})(), null);
 
 // Trancar o sistema por fora é o único estrago que esta tela pode fazer: é o
 // que a contagem de outros ativos existe para impedir.

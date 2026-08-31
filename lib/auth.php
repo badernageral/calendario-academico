@@ -114,11 +114,20 @@ function hashDeMentira(PDO $db): string
     return $prefixo . str_repeat('.', 53);
 }
 
-/** Cadastra um usuário e devolve a linha criada. */
-function criarUsuario(PDO $db, string $nome, string $usuario, string $senha): array
+/**
+ * Cadastra um usuário e devolve a linha criada.
+ *
+ * Nasce ativo, e o `ativo` vai explícito em vez de sair do DEFAULT da coluna: o
+ * que a aplicação grava fica dito aqui, e não escondido no schema. Desativar é
+ * coisa da edição — a caixa "Ativo" nem aparece no cadastro de um usuário novo,
+ * porque criar alguém já desligado não é caso que exista.
+ *
+ * $ativo existe para o teste poder criar um inativo sem mexer no banco à mão.
+ */
+function criarUsuario(PDO $db, string $nome, string $usuario, string $senha, bool $ativo = true): array
 {
-    $db->prepare('INSERT INTO usuarios (nome, usuario, senha_hash) VALUES (?,?,?)')
-       ->execute([$nome, $usuario, password_hash($senha, PASSWORD_DEFAULT)]);
+    $db->prepare('INSERT INTO usuarios (nome, usuario, senha_hash, ativo) VALUES (?,?,?,?)')
+       ->execute([$nome, $usuario, password_hash($senha, PASSWORD_DEFAULT), $ativo ? 1 : 0]);
     $st = $db->prepare('SELECT * FROM usuarios WHERE id = ?');
     $st->execute([(int) $db->lastInsertId()]);
     return (array) $st->fetch();

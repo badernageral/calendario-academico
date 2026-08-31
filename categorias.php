@@ -58,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('Categoria criada.');
             }
         } catch (PDOException $ex) {
+            guardarPost();
             flash('Já existe uma categoria chamada “' . post('nome') . '”.', 'erro');
             redirect('categorias.php?' . ($id ? 'editar=' . $id : 'novo=1'));
         }
@@ -102,6 +103,8 @@ $abrirModal = $edit !== null || get('novo') !== '';
 // Com o modal reabrindo, o erro vai para dentro dele; o head() imprime o que
 // sobrar, que é o caso de um "Categoria excluída.".
 $erroModal  = modalAbrindo() ? erroParaModal() : '';
+// E o formulário volta com o que foi digitado, em vez de se remontar do banco.
+[$g_val, $g_marcada] = formDeVolta('salvar');
 
 head('Legenda', 'categorias');
 ?>
@@ -177,19 +180,19 @@ head('Legenda', 'categorias');
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Nome</label>
-              <input name="nome" class="form-control" required value="<?= e($edit['nome'] ?? '') ?>">
+              <input name="nome" class="form-control" required value="<?= e($g_val('nome', (string) ($edit['nome'] ?? ''))) ?>">
             </div>
             <div class="col-md-3">
               <label class="form-label">Cor do fundo</label>
-              <input type="color" name="cor" class="form-control form-control-color w-100" value="<?= e($edit['cor'] ?? '#ffff00') ?>">
+              <input type="color" name="cor" class="form-control form-control-color w-100" value="<?= e($g_val('cor', (string) ($edit['cor'] ?? '#ffff00'))) ?>">
             </div>
             <div class="col-md-3">
               <label class="form-label">Cor do texto</label>
-              <input type="color" name="cor_texto" class="form-control form-control-color w-100" value="<?= e($edit['cor_texto'] ?? '#000000') ?>">
+              <input type="color" name="cor_texto" class="form-control form-control-color w-100" value="<?= e($g_val('cor_texto', (string) ($edit['cor_texto'] ?? '#000000'))) ?>">
             </div>
             <div class="col-md-5">
               <label class="form-label">Conta como letivo</label>
-              <?php $lv = $edit ? ($edit['letivo'] === null ? '' : (string) $edit['letivo']) : ''; ?>
+              <?php $lv = $g_val('letivo', $edit && $edit['letivo'] !== null ? (string) $edit['letivo'] : ''); ?>
               <select name="letivo" class="form-select">
                 <option value=""  <?= $lv === ''  ? 'selected' : '' ?>>Neutro — o dia da semana decide</option>
                 <option value="1" <?= $lv === '1' ? 'selected' : '' ?>>Sim — sempre conta como letivo</option>
@@ -199,17 +202,17 @@ head('Legenda', 'categorias');
             <div class="col-md-2">
               <label class="form-label">Prioridade</label>
               <input type="number" name="prioridade" class="form-control" min="1" max="<?= PRIORIDADE_MAX ?>"
-                     value="<?= (int) ($edit['prioridade'] ?? 50) ?>">
+                     value="<?= (int) $g_val('prioridade', (string) ($edit['prioridade'] ?? 50)) ?>">
               <div class="form-text">1 a <?= PRIORIDADE_MAX ?>; maior vence a cor do dia.</div>
             </div>
             <div class="col-md-3">
               <label class="form-label">Ordem na legenda</label>
-              <input type="number" name="ordem" class="form-control" value="<?= (int) ($edit['ordem'] ?? 0) ?>">
+              <input type="number" name="ordem" class="form-control" value="<?= (int) $g_val('ordem', (string) ($edit['ordem'] ?? 0)) ?>">
             </div>
             <div class="col-md-2 d-flex align-items-center">
               <div class="form-check mt-3">
                 <input class="form-check-input" type="checkbox" name="na_legenda" id="na_legenda"
-                       <?= ($edit === null || (int) $edit['na_legenda'] === 1) ? 'checked' : '' ?>>
+                       <?= $g_marcada('na_legenda', $edit === null || (int) $edit['na_legenda'] === 1) ? 'checked' : '' ?>>
                 <label class="form-check-label" for="na_legenda">Na legenda</label>
               </div>
             </div>

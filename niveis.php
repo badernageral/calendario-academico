@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $nome = post('nome');
         if ($nome === '') {
+            guardarPost();
             flash('Informe o nome do nível.', 'erro');
             redirect($volta);
         }
@@ -27,12 +28,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $chave = chaveNivel($nome);
             if ($chave === '') {
+                guardarPost();
                 flash('O nome precisa ter ao menos uma letra ou número.', 'erro');
                 redirect($volta);
             }
             $st = $db->prepare('SELECT COUNT(*) FROM niveis WHERE chave = ?');
             $st->execute([$chave]);
             if ((int) $st->fetchColumn() > 0) {
+                guardarPost();
                 flash('Já existe um nível com esse nome.', 'erro');
                 redirect($volta);
             }
@@ -107,6 +110,8 @@ $abrirModal = $edit !== null || get('novo') !== '';
 // Com o modal reabrindo, o erro vai para dentro dele; o head() imprime o que
 // sobrar, que é o caso de um "Nível excluído.".
 $erroModal  = modalAbrindo() ? erroParaModal() : '';
+// E o formulário volta com o que foi digitado, em vez de se remontar do banco.
+[$n_val] = formDeVolta('salvar');
 
 head('Níveis', 'niveis');
 ?>
@@ -200,7 +205,7 @@ head('Níveis', 'niveis');
           <div class="row g-3">
             <div class="col-12">
               <label class="form-label">Nome</label>
-              <input name="nome" class="form-control" required value="<?= e($edit['nome'] ?? '') ?>"
+              <input name="nome" class="form-control" required value="<?= e($n_val('nome', (string) ($edit['nome'] ?? ''))) ?>"
                      placeholder="Técnico Integrado">
               <div class="form-text">
                 <?php if ($edit): ?>Renomear é seguro: os cursos e eventos ligados a ele continuam iguais.

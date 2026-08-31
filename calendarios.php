@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/lib/boot.php';
+require __DIR__ . '/lib/eventos_crud.php';   // copiarEventos()
 
 $db = db();
 
@@ -10,18 +11,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $curso = postInt('curso_id');
         $ano   = postInt('ano');
         if (!$curso || !$ano) {
+            guardarPost();
             flash('Escolha o curso e informe o ano.', 'erro');
             redirect('calendarios.php?novo=1');
         }
         // A mesma faixa do campo do formulário: um ano fora dela geraria um
         // calendário que nenhuma tela por ano alcança depois.
         if ($ano !== anoDaTela($ano, 0)) {
+            guardarPost();
             flash('O ano precisa ficar entre ' . ANO_MIN . ' e ' . ANO_MAX . '.', 'erro');
             redirect('calendarios.php?novo=1');
         }
         // Os rótulos do erro dependem do regime do curso escolhido.
         [$bimestres, $erro] = bimestresDoFormulario(regimeDoCurso($db, $curso), $ano);
         if ($erro !== '') {
+            guardarPost();
             flash($erro, 'erro');
             redirect('calendarios.php?novo=1');
         }
@@ -45,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->commit();
         } catch (PDOException $ex) {
             $db->rollBack();
+            guardarPost();
             flash('Já existe um calendário desse curso para ' . $ano . '.', 'erro');
             redirect('calendarios.php?novo=1');
         } catch (Throwable $ex) {
@@ -54,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $origem = postInt('copiar_de');
         if ($origem) {
-            copiarEventos($db, $origem, $novoId, $ano);
+            copiarEventos($db, $origem, $novoId, $ano, isset($_POST['copiar_reposicoes']));
         }
         // O formulário de criação já pede tudo o que a tela de dados pede, então
         // o passo seguinte é a grade: cadastrar os eventos do curso.
@@ -66,44 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db->prepare('DELETE FROM calendarios WHERE id = ?')->execute([postInt('id')]);
         flash('Calendário excluído.');
         redirect('calendarios.php');
-    }
-}
-
-/** Duplica os eventos próprios de um calendário para outro, deslocando o ano. */
-function copiarEventos(PDO $db, int $de, int $para, int $anoDestino): void
-{
-    $st = $db->prepare('SELECT * FROM eventos WHERE calendario_id = ?');
-    $st->execute([$de]);
-    $origem = $st->fetchAll();
-    if (!$origem) {
-        return;
-    }
-    $ins = $db->prepare(
-        'INSERT INTO eventos (ano, calendario_id, categoria_id, descricao, pinta_dias, negrito, conta_letivo, rotulo, nivel, repoe_dow)
-         VALUES (?,?,?,?,?,?,?,?,?,?)'
-    );
-    $sel = $db->prepare('SELECT inicio, fim FROM evento_datas WHERE evento_id = ?');
-    foreach ($origem as $ev) {
-        $sel->execute([$ev['id']]);
-        $faixas = [];
-        $delta  = $anoDestino - (int) $ev['ano'];
-        foreach ($sel as $d) {
-            $faixas[] = [
-                'inicio' => deslocarAno($d['inicio'], $delta),
-                'fim'    => deslocarAno($d['fim'], $delta),
-            ];
-        }
-        // Evento sem faixa não existe no calendário — o motor o descarta. Copiá-lo
-        // só deixaria uma linha invisível no banco. É o que copiarEventosGlobais()
-        // já fazia; aqui faltava.
-        if (!$faixas) {
-            continue;
-        }
-        $ins->execute([
-            $anoDestino, $para, $ev['categoria_id'], $ev['descricao'], $ev['pinta_dias'],
-            $ev['negrito'], $ev['conta_letivo'], $ev['rotulo'], $ev['nivel'], $ev['repoe_dow'],
-        ]);
-        salvarFaixas($db, (int) $db->lastInsertId(), $faixas);
     }
 }
 

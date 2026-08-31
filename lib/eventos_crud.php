@@ -45,6 +45,21 @@ function fimDeSemanaEm(array $faixas): array
 }
 
 /**
+ * Recusa o pedido: guarda o que foi digitado, avisa e devolve ao formulário.
+ *
+ * Existe para nenhum caminho de recusa esquecer de guardar o POST — são seis, e
+ * quem acrescentar o sétimo não vai lembrar. O formulário se remonta do que
+ * ficou guardado, então quem escreveu uma descrição longa e escolheu cinco
+ * períodos não recomeça do zero por causa de um campo errado.
+ */
+function recusarEvento(string $motivo, string $volta): never
+{
+    guardarPost();
+    flash($motivo, 'erro');
+    redirect($volta);
+}
+
+/**
  * Tratamento POST compartilhado pelas telas de eventos.
  * $calendarioId null = tela de eventos globais; caso contrário, a tela de um
  * calendário — e ali o formulário deixa escolher, no campo "escopo", se o
@@ -89,16 +104,14 @@ function tratarPostEvento(PDO $db, int $ano, ?int $calendarioId, string $voltarP
     // de conferir o resto, porque descartá-la em silêncio no meio de datas boas
     // faz quem cadastrou sair achando que gravou o que digitou.
     if ($ruins = datasRecusadas(post('datas'), $ano)) {
-        flash(sprintf('Não entendi %s: %s. Use 07/03/2026 ou 14/03 a 16/03.',
+        recusarEvento(sprintf('Não entendi %s: %s. Use 07/03/2026 ou 14/03 a 16/03.',
             count($ruins) === 1 ? 'esta data' : 'estas datas',
-            implode(', ', array_map(static fn (string $l): string => '“' . $l . '”', $ruins))), 'erro');
-        redirect($volta);
+            implode(', ', array_map(static fn (string $l): string => '“' . $l . '”', $ruins))), $volta);
     }
 
     $faixas = parseFaixas(post('datas'), $ano);
     if ($faixas === []) {
-        flash('Informe ao menos uma data válida (ex.: 07/03/2026 ou 14/03 a 16/03).', 'erro');
-        redirect($volta);
+        recusarEvento('Informe ao menos uma data válida (ex.: 07/03/2026 ou 14/03 a 16/03).', $volta);
     }
 
     // Toda data tem de cair no ano do calendário. A grade só desenha esse ano e
@@ -109,14 +122,12 @@ function tratarPostEvento(PDO $db, int $ano, ?int $calendarioId, string $voltarP
     foreach ($faixas as $f) {
         foreach ([$f['inicio'], $f['fim']] as $data) {
             if ((int) substr($data, 0, 4) !== $ano) {
-                flash('A data ' . dataBr($data) . " está fora de {$ano}, o ano deste calendário.", 'erro');
-                redirect($volta);
+                recusarEvento('A data ' . dataBr($data) . " está fora de {$ano}, o ano deste calendário.", $volta);
             }
         }
     }
     if (post('descricao') === '') {
-        flash('A descrição é obrigatória.', 'erro');
-        redirect($volta);
+        recusarEvento('A descrição é obrigatória.', $volta);
     }
 
     // Global = calendario_id NULL, vale para todos os calendários do ano.
@@ -135,6 +146,17 @@ function tratarPostEvento(PDO $db, int $ano, ?int $calendarioId, string $voltarP
         $repoe = null;
     }
 
+    // O contrário da conferência de baixo: reposição sem "conta como letivo" em
+    // Sim. Um dia que cumpre o horário de outro é dia de aula — é para isso que
+    // ele existe —, e "Herdar da categoria" não basta: categoria nenhuma de
+    // fábrica obriga o dia a contar, então a herança devolve a decisão à regra
+    // do dia da semana, que num sábado responde "não". A categoria pode ser
+    // não letiva à vontade: o conta_letivo do evento passa na frente dela, aqui
+    // e no motor.
+    if ($repoe !== null && $letivo !== 1) {
+        recusarEvento('Você não pode cadastrar reposições de horário como dias não letivos!', $volta);
+    }
+
     // Sábado ou domingo que conta como letivo precisa dizer que horário cumpre.
     // Sem isso o dia entra no total do semestre sem entrar em coluna nenhuma da
     // contagem por horário, e não gera a nota "4 sábados letivos com horário de
@@ -142,14 +164,13 @@ function tratarPostEvento(PDO $db, int $ano, ?int $calendarioId, string $voltarP
     if ($repoe === null && forcaDiaLetivo($db, $letivo, $categoria)) {
         $fds = fimDeSemanaEm($faixas);
         if ($fds !== []) {
-            flash(sprintf(
+            recusarEvento(sprintf(
                 '%s %s de fim de semana. Um sábado ou domingo que conta como letivo precisa dizer '
                 . 'com que horário funciona — preencha “Funciona com horário de”.',
                 implode(', ', array_map('dataBr', array_slice($fds, 0, 4)))
                     . (count($fds) > 4 ? ' e mais ' . (count($fds) - 4) : ''),
                 count($fds) === 1 ? 'é um dia' : 'são dias'
-            ), 'erro');
-            redirect($volta);
+            ), $volta);
         }
     }
 
@@ -201,6 +222,55 @@ function tratarPostEvento(PDO $db, int $ano, ?int $calendarioId, string $voltarP
     salvarFaixas($db, $id, $faixas);
     flash('Evento salvo.');
     redirect($voltarPara);
+}
+
+/**
+ * Duplica os eventos próprios de um calendário para outro, deslocando o ano.
+ *
+ * $comReposicoes decide se os eventos de reposição de horário vêm junto. Fora
+ * por padrão: um "Sábado letivo com horário de segunda" existe para repor uma
+ * segunda perdida num feriado daquele ano, e no ano seguinte esse feriado cai
+ * noutro dia da semana — copiado, ele repõe um dia que não faltou, e o sábado
+ * entra como letivo sem motivo. Quem quiser os traz e ajusta um a um.
+ */
+function copiarEventos(PDO $db, int $de, int $para, int $anoDestino, bool $comReposicoes = false): void
+{
+    $st = $db->prepare('SELECT * FROM eventos WHERE calendario_id = ?');
+    $st->execute([$de]);
+    $origem = $st->fetchAll();
+    if (!$origem) {
+        return;
+    }
+    $ins = $db->prepare(
+        'INSERT INTO eventos (ano, calendario_id, categoria_id, descricao, pinta_dias, negrito, conta_letivo, rotulo, nivel, repoe_dow)
+         VALUES (?,?,?,?,?,?,?,?,?,?)'
+    );
+    $sel = $db->prepare('SELECT inicio, fim FROM evento_datas WHERE evento_id = ?');
+    foreach ($origem as $ev) {
+        if (!$comReposicoes && $ev['repoe_dow'] !== null) {
+            continue;
+        }
+        $sel->execute([$ev['id']]);
+        $faixas = [];
+        $delta  = $anoDestino - (int) $ev['ano'];
+        foreach ($sel as $d) {
+            $faixas[] = [
+                'inicio' => deslocarAno($d['inicio'], $delta),
+                'fim'    => deslocarAno($d['fim'], $delta),
+            ];
+        }
+        // Evento sem faixa não existe no calendário — o motor o descarta. Copiá-lo
+        // só deixaria uma linha invisível no banco. É o que copiarEventosGlobais()
+        // já fazia; aqui faltava.
+        if (!$faixas) {
+            continue;
+        }
+        $ins->execute([
+            $anoDestino, $para, $ev['categoria_id'], $ev['descricao'], $ev['pinta_dias'],
+            $ev['negrito'], $ev['conta_letivo'], $ev['rotulo'], $ev['nivel'], $ev['repoe_dow'],
+        ]);
+        salvarFaixas($db, (int) $db->lastInsertId(), $faixas);
+    }
 }
 
 /**

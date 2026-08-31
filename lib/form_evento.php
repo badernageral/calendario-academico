@@ -16,6 +16,17 @@ $ev ??= null;
 $dataPadrao ??= '';
 $erroModal  ??= '';
 $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
+
+/**
+ * O POST que o servidor recusou, para o formulário voltar com o que foi
+ * digitado em vez de se remontar do banco. Vazio quando a tela não veio de uma
+ * recusa — e aí tudo se monta como sempre.
+ *
+ * $e_devolta responde "veio de recusa?"; sem essa distinção não daria para saber
+ * se uma caixa desmarcada é escolha de quem cadastrou ou ausência de dado, já
+ * que caixa desmarcada não é enviada.
+ */
+[$e_val, $e_marcada, $e_devolta, $e_post] = formDeVolta('salvar_evento');
 ?>
 <div class="modal fade" id="modalEvento" tabindex="-1" aria-labelledby="tituloModalEvento">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -46,7 +57,7 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
           <div class="row g-3">
             <div class="col-12">
               <label class="form-label">Descrição</label>
-              <input name="descricao" class="form-control" required value="<?= e($ev['descricao'] ?? '') ?>"
+              <input name="descricao" class="form-control" required value="<?= e($e_val('descricao', (string) ($ev['descricao'] ?? ''))) ?>"
                      placeholder="Início do 1º bimestre e 1º semestre letivo">
               <div class="form-text">Sem o prefixo de data — ele é gerado sozinho a partir das datas abaixo.</div>
             </div>
@@ -54,9 +65,14 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
             <?php
             // Faixas que o seletor já mostra ao abrir: as do evento em edição
             // ou o dia clicado na grade.
-            $faixasIniciais = $ev
-                ? array_map(static fn ($d) => ['inicio' => $d['inicio'], 'fim' => $d['fim']], $ev['datas'])
-                : ($dataPadrao !== '' ? [['inicio' => $dataPadrao, 'fim' => $dataPadrao]] : []);
+            // Vindo de recusa, as faixas saem do texto que foi enviado — o mesmo
+            // formato que o servidor lê. Uma linha impossível ("31/02") não volta:
+            // ela é justamente o que a recusa está pedindo para corrigir.
+            $faixasIniciais = $e_devolta
+                ? parseFaixas($e_val('datas'), $ano)
+                : ($ev
+                    ? array_map(static fn ($d) => ['inicio' => $d['inicio'], 'fim' => $d['fim']], $ev['datas'])
+                    : ($dataPadrao !== '' ? [['inicio' => $dataPadrao, 'fim' => $dataPadrao]] : []));
             ?>
             <div class="col-md-6">
               <label class="form-label">Período</label>
@@ -94,9 +110,10 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
                   // o retângulo aparece igual em todo navegador. O valor vai num
                   // campo escondido com o mesmo nome de antes, então o servidor
                   // não sabe que algo mudou.
+                  $e_catId  = (int) $e_val('categoria_id', (string) ($ev['categoria_id'] ?? ''));
                   $catAtual = null;
                   foreach ($cats as $c) {
-                      if ((int) ($ev['categoria_id'] ?? 0) === (int) $c['id']) {
+                      if ($e_catId === (int) $c['id']) {
                           $catAtual = $c;
                       }
                   }
@@ -108,20 +125,26 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
                             aria-haspopup="listbox" aria-expanded="false">
                       <span class="retangulo-cor <?= $catAtual ? '' : 'sem-cor' ?>"
                             style="<?= $catAtual ? 'background:' . e($catAtual['cor']) : '' ?>"></span>
-                      <span class="rotulo"><?= $catAtual ? e($catAtual['nome']) : '— sem cor, só na lista —' ?></span>
+                      <span class="rotulo"><?= $catAtual
+                          ? e($catAtual['nome'] . ' — ' . efeitoDaCategoria($catAtual['letivo']))
+                          : 'Sem cor — ' . efeitoDaCategoria(null) ?></span>
                     </button>
                     <ul class="dropdown-menu w-100" role="listbox" aria-labelledby="botaoCategoria">
                       <li>
+                        <?php // Sem categoria o dia não é pintado e a conta não muda: o
+                              // efeito é o mesmo "Neutro" das categorias que só pintam, e sai
+                              // daqui para a linha ficar igual às outras. ?>
                         <button type="button" class="dropdown-item" role="option"
                                 aria-selected="<?= $catAtual ? 'false' : 'true' ?>"
-                                data-valor="" data-cor="" data-nome="— sem cor, só na lista —">
+                                data-valor="" data-cor="" data-nome="Sem cor"
+                                data-efeito="<?= e(efeitoDaCategoria(null)) ?>">
                           <span class="retangulo-cor sem-cor"></span>
-                          <span>— sem cor, só na lista —</span>
+                          <span>Sem cor <span class="efeito-categoria">— <?= e(efeitoDaCategoria(null)) ?></span></span>
                         </button>
                       </li>
                       <?php foreach ($cats as $c): ?>
                         <?php
-                        $ehAtual = (int) ($ev['categoria_id'] ?? 0) === (int) $c['id'];
+                        $ehAtual = $e_catId === (int) $c['id'];
                         // A oculta não se oferece: quem a aplica é o cadastro de
                         // feriados. Mas se o evento já está nela — dado antigo, ou
                         // vindo do importador da planilha —, ela precisa aparecer:
@@ -132,44 +155,38 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
                         }
                         ?>
                         <li>
-                          <?php // data-nome é o nome puro: o aviso da oculta explica a linha do
-                                // menu, mas não faz parte do nome da categoria e não deve ir
-                                // parar no rótulo do botão depois de escolhida. ?>
+                          <?php
+                          // data-nome é o nome puro e data-efeito o que a categoria faz com a
+                          // conta de dias: os dois juntos viram o rótulo do botão quando a linha
+                          // é escolhida. O aviso da oculta fica fora dos dois — ele explica por
+                          // que a linha está no menu, e não é parte do nome nem do efeito.
+                          $c_efeito = efeitoDaCategoria($c['letivo']);
+                          ?>
                           <button type="button" class="dropdown-item<?= $ehAtual ? ' active' : '' ?>"
                                   role="option" aria-selected="<?= $ehAtual ? 'true' : 'false' ?>"
                                   data-valor="<?= (int) $c['id'] ?>" data-cor="<?= e($c['cor']) ?>"
-                                  data-nome="<?= e($c['nome']) ?>">
+                                  data-nome="<?= e($c['nome']) ?>" data-efeito="<?= e($c_efeito) ?>">
                             <span class="retangulo-cor" style="background:<?= e($c['cor']) ?>"></span>
-                            <span><?= e($c['nome']) ?><?= (int) $c['oculta'] === 1 ? ' — vem do cadastro de feriados' : '' ?></span>
+                            <span><?= e($c['nome']) ?> <span class="efeito-categoria">— <?= e($c_efeito) ?></span><?= (int) $c['oculta'] === 1 ? ' — vem do cadastro de feriados' : '' ?></span>
                           </button>
                         </li>
                       <?php endforeach; ?>
                     </ul>
                     <input type="hidden" name="categoria_id" id="categoriaEvento"
-                           value="<?= (int) ($ev['categoria_id'] ?? 0) ?: '' ?>">
+                           value="<?= $e_catId ?: '' ?>">
                   </div>
                 </div>
                 <div class="col-12">
                   <label class="form-label">Rótulo de datas</label>
-                  <input name="rotulo" class="form-control" value="<?= e($ev['rotulo'] ?? '') ?>" placeholder="automático">
+                  <input name="rotulo" class="form-control" value="<?= e($e_val('rotulo', (string) ($ev['rotulo'] ?? ''))) ?>" placeholder="automático">
                   <div class="form-text">Só se precisar fugir do padrão, ex.: <code>5 e 6</code> no lugar de <code>5 a 6</code>.</div>
                 </div>
               </div>
             </div>
 
             <div class="col-md-4">
-              <label class="form-label">Conta como letivo</label>
-              <?php $cl = $ev ? ($ev['conta_letivo'] === null ? '' : (string) $ev['conta_letivo']) : ''; ?>
-              <select name="conta_letivo" class="form-select">
-                <option value=""  <?= $cl === ''  ? 'selected' : '' ?>>Herdar da categoria</option>
-                <option value="1" <?= $cl === '1' ? 'selected' : '' ?>>Sim — conta como letivo</option>
-                <option value="0" <?= $cl === '0' ? 'selected' : '' ?>>Não — não conta como letivo</option>
-              </select>
-            </div>
-
-            <div class="col-md-4">
               <label class="form-label">Funciona com horário de</label>
-              <?php $rd = $ev && $ev['repoe_dow'] !== null ? (string) $ev['repoe_dow'] : ''; ?>
+              <?php $rd = $e_val('repoe_dow', $ev && $ev['repoe_dow'] !== null ? (string) $ev['repoe_dow'] : ''); ?>
               <select name="repoe_dow" class="form-select">
                 <option value="">— não é reposição —</option>
                 <?php foreach (Engine::DOW_NOME as $i => $nome): ?>
@@ -186,10 +203,22 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
               <div class="form-text">Alimenta as notas “4 sábados letivos com horário de segunda”.</div>
             </div>
 
+            <div class="col-md-4">
+              <label class="form-label">Conta como letivo</label>
+              <?php $cl = $e_val('conta_letivo', $ev && $ev['conta_letivo'] !== null ? (string) $ev['conta_letivo'] : ''); ?>
+              <select name="conta_letivo" class="form-select">
+                <option value=""  <?= $cl === ''  ? 'selected' : '' ?>>Herdar da categoria</option>
+                <option value="1" <?= $cl === '1' ? 'selected' : '' ?>>Sim — conta como letivo</option>
+                <option value="0" <?= $cl === '0' ? 'selected' : '' ?>>Não — não conta como letivo</option>
+              </select>
+            </div>
+
             <?php
             // Editando: o escopo vem do próprio evento. Novo: local, que é o
             // caso comum de quem está dentro de um calendário.
-            $ehGlobal = $baseComum || ($ev && $ev['calendario_id'] === null);
+            $ehGlobal = $e_devolta
+                ? $e_val('escopo', 'local') === 'global'
+                : ($baseComum || ($ev && $ev['calendario_id'] === null));
             ?>
             <?php if (!$baseComum): ?>
             <div class="col-md-4">
@@ -209,7 +238,11 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
               <?php
               // Sem restrição no banco (evento novo ou global de todos os cursos)
               // = todos marcados na tela. Desmarcar é que restringe.
-              $niveisMarcados = niveisDoEvento($ev['nivel'] ?? null) ?: array_keys(niveisCurso());
+              // Vindo de recusa, valem as caixas enviadas; nenhuma marcada é
+              // escolha legítima, e não o mesmo que "não veio nível nenhum".
+              $niveisMarcados = $e_devolta
+                  ? array_values(array_intersect((array) ($e_post['nivel'] ?? []), array_keys(niveisCurso())))
+                  : (niveisDoEvento($ev['nivel'] ?? null) ?: array_keys(niveisCurso()));
               ?>
               <div class="d-flex flex-wrap align-items-center gap-4">
                 <div class="form-check">
@@ -235,12 +268,12 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
             <div class="col-12 d-flex flex-wrap gap-4">
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="pinta_dias" id="pinta_dias"
-                       <?= ($ev === null || (int) $ev['pinta_dias'] === 1) ? 'checked' : '' ?>>
+                       <?= $e_marcada('pinta_dias', $ev === null || (int) $ev['pinta_dias'] === 1) ? 'checked' : '' ?>>
                 <label class="form-check-label" for="pinta_dias">Pintar os dias na grade</label>
               </div>
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="negrito" id="negrito"
-                       <?= ($ev && (int) $ev['negrito'] === 1) ? 'checked' : '' ?>>
+                       <?= $e_marcada('negrito', (bool) ($ev && (int) $ev['negrito'] === 1)) ? 'checked' : '' ?>>
                 <label class="form-check-label" for="negrito">Negrito na lista</label>
               </div>
             </div>
@@ -462,6 +495,31 @@ $abrirModal = $ev !== null || $dataPadrao !== '' || get('novo') !== '';
   });
   itens.forEach(function (i) { i.addEventListener('change', sincronizarTodos); });
   sincronizarTodos();
+})();
+</script>
+
+<script>
+/**
+ * Escolher um horário a repor põe "Conta como letivo" em Sim.
+ *
+ * Um dia que cumpre o horário de outro é dia de aula — é para isso que ele
+ * existe. Deixado em "Herdar da categoria", o sábado com horário de segunda não
+ * contava: nenhuma categoria de fábrica obriga o dia a contar, e a herança
+ * deixava a regra do dia da semana decidir, que para sábado é "não". O servidor
+ * já recusa esse par, e aqui ele nem chega a se formar.
+ *
+ * Só nessa direção. Tirar a reposição não desfaz nada: a essa altura o "Sim"
+ * pode ser escolha de quem cadastra — um dia útil marcado à mão —, e não é
+ * nosso para desfazer.
+ */
+(function () {
+  var repoe = document.querySelector('#modalEvento [name="repoe_dow"]'),
+      conta = document.querySelector('#modalEvento [name="conta_letivo"]');
+  if (!repoe || !conta) { return; }
+
+  repoe.addEventListener('change', function () {
+    if (repoe.value !== '') { conta.value = '1'; }
+  });
 })();
 </script>
 

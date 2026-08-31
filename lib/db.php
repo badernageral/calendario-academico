@@ -221,6 +221,24 @@ function legendaDoCalendario(array $categorias): array
     return $legenda;
 }
 
+/**
+ * O que a categoria faz com a conta de dias letivos, em uma palavra.
+ *
+ * A coluna `letivo` tem três estados e nenhum deles se lê no nome: 1 obriga o
+ * dia a contar (o sábado letivo), 0 obriga a não contar (feriado, férias,
+ * recesso) e NULL não mexe — o dia decide pelo dia da semana, e a categoria só
+ * pinta. Quem escolhe a cor de um evento precisa saber disso antes de escolher,
+ * não depois de ver o total mudar.
+ */
+function efeitoDaCategoria(int|string|null $letivo): string
+{
+    return match ($letivo === null ? null : (int) $letivo) {
+        1       => 'Letivo',
+        0       => 'Não letivo',
+        default => 'Neutro',
+    };
+}
+
 /** Só as de feriado, que são as que a tela de Feriados oferece como tipo. */
 function nomesDeFeriado(): array
 {

@@ -15,11 +15,14 @@
 $calEdit ??= null;
 $erroModal ??= '';
 $c_novo  = $calEdit === null;
+// Recusado, o formulário volta com o que foi digitado. A ação distingue os dois
+// usos deste mesmo modal: criar um calendário e editar os dados de um.
+[$c_val, $c_marcada, $c_devolta] = formDeVolta($c_novo ? 'novo' : 'salvar_calendario');
 
 if ($c_novo) {
-    $c_valores = $sugestoes[$anoPadrao];
+    $c_ano     = (int) $c_val('ano', (string) $anoPadrao);
+    $c_valores = $sugestoes[$c_ano] ?? $sugestoes[$anoPadrao];
     $c_regime  = $cursos ? $cursos[0]['regime'] : 'semestral';
-    $c_ano     = (int) $anoPadrao;
     $c_abrir   = get('novo') !== '';
 } else {
     $c_ano    = (int) $calEdit['ano'];
@@ -83,7 +86,8 @@ if ($c_novo) {
               <?php if ($c_novo): ?>
                 <select name="curso_id" class="form-select" required>
                   <?php foreach ($cursos as $c_c): ?>
-                    <option value="<?= $c_c['id'] ?>"><?= e($c_c['nome']) ?></option>
+                    <option value="<?= $c_c['id'] ?>"
+                            <?= $c_val('curso_id') === (string) $c_c['id'] ? 'selected' : '' ?>><?= e($c_c['nome']) ?></option>
                   <?php endforeach; ?>
                 </select>
               <?php else: ?>
@@ -103,7 +107,7 @@ if ($c_novo) {
             <div class="col-md-4">
               <label class="form-label">Situação</label>
               <input name="situacao" class="form-control"
-                     value="<?= e($c_novo ? cfg('situacao') : $calEdit['situacao']) ?>">
+                     value="<?= e($c_val('situacao', $c_novo ? cfg('situacao') : (string) $calEdit['situacao'])) ?>">
               <?php if (!$c_novo): ?>
                 <div class="form-text">Sai no rodapé de cada página do calendário impresso.</div>
               <?php endif; ?>
@@ -112,14 +116,23 @@ if ($c_novo) {
             <div class="col-12">
               <label class="form-label">Local e data</label>
               <input name="local_texto" class="form-control"
-                     value="<?= e($c_novo ? localEData() : $calEdit['local_texto']) ?>">
+                     value="<?= e($c_val('local_texto', $c_novo ? localEData() : (string) $calEdit['local_texto'])) ?>">
             </div>
 
-            <?php $valores = $c_valores; $regime = $c_regime; require __DIR__ . '/campos_bimestres.php'; ?>
+            <?php
+            // Vindo de recusa, as oito datas são as que foram enviadas — inclusive
+            // a errada, que é justamente a que se vai corrigir.
+            if ($c_devolta) {
+                foreach (array_keys($c_valores) as $c_k) {
+                    $c_valores[$c_k] = $c_val($c_k, (string) $c_valores[$c_k]);
+                }
+            }
+            $valores = $c_valores; $regime = $c_regime; require __DIR__ . '/campos_bimestres.php';
+            ?>
 
             <div class="col-12">
               <label class="form-label">Observações</label>
-              <textarea name="observacoes" class="form-control" rows="3"><?= e($c_novo ? '' : $calEdit['observacoes']) ?></textarea>
+              <textarea name="observacoes" class="form-control" rows="3"><?= e($c_val('observacoes', $c_novo ? '' : (string) $calEdit['observacoes'])) ?></textarea>
               <div class="form-text">Cada linha vira uma nota na página de resumo do calendário impresso.</div>
             </div>
 
@@ -130,10 +143,20 @@ if ($c_novo) {
                 <select name="copiar_de" class="form-select">
                   <option value="">— começar vazio —</option>
                   <?php foreach ($cals as $c_c): ?>
-                    <option value="<?= $c_c['id'] ?>"><?= e($c_c['curso_nome']) ?> · <?= $c_c['ano'] ?> (<?= $c_c['n_eventos'] ?> eventos locais)</option>
+                    <option value="<?= $c_c['id'] ?>"
+                            <?= $c_val('copiar_de') === (string) $c_c['id'] ? 'selected' : '' ?>><?= e($c_c['curso_nome']) ?> · <?= $c_c['ano'] ?> (<?= $c_c['n_eventos'] ?> eventos locais)</option>
                   <?php endforeach; ?>
                 </select>
-                <div class="form-text">As datas entram deslocadas para o ano novo. Só na criação.</div>
+              </div>
+              <div class="col-md-6 d-flex align-items-center">
+                <div class="form-check mt-md-4">
+                  <input class="form-check-input" type="checkbox" name="copiar_reposicoes" id="copiarReposicoes" value="1"
+                         <?= $c_marcada('copiar_reposicoes', false) ? 'checked' : '' ?>>
+                  <label class="form-check-label" for="copiarReposicoes">
+                    Copiar eventos de reposição de horário
+                  </label>
+                  <div class="form-text">Ex.: <em>Sábado letivo com horário de quarta</em>.</div>
+                </div>
               </div>
             <?php endif; ?>
           </div>
@@ -163,4 +186,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <?php endif; ?>
-<?php unset($c_erro, $c_novo, $c_valores, $c_regime, $c_ano, $c_abrir, $c_salvos, $c_n, $c_i, $c_f, $c_c); ?>
+<?php unset($c_erro, $c_novo, $c_valores, $c_k, $c_regime, $c_ano, $c_abrir, $c_salvos, $c_n, $c_i, $c_f, $c_c); ?>

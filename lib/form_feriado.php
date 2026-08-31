@@ -17,9 +17,12 @@ $feriadoNovo ??= false;
 $erroModal   ??= '';
 $f_abrir     = $feriadoEdit !== null || $feriadoNovo;
 $f_cats      = categoriasDeFeriado($db);
-$f_tipo      = $feriadoEdit['tipo'] ?? 'fixo';
-$f_dia       = $feriadoEdit['dia'] ?? (getInt('dia') ?: (int) date('j'));
-$f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
+// Recusado, o formulário volta com o que foi digitado em vez de se remontar do
+// cadastro.
+[$f_val] = formDeVolta('salvar_feriado');
+$f_tipo      = $f_val('tipo', (string) ($feriadoEdit['tipo'] ?? 'fixo'));
+$f_dia       = (int) $f_val('dia', (string) ($feriadoEdit['dia'] ?? (getInt('dia') ?: (int) date('j'))));
+$f_mes       = (int) $f_val('mes', (string) ($feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'))));
 ?>
 <div class="modal fade" id="modalFeriado" tabindex="-1" aria-labelledby="tituloModalFeriado">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -46,7 +49,7 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
           <div class="row g-3">
             <div class="col-md-8">
               <label class="form-label">Nome</label>
-              <input name="nome" class="form-control" required value="<?= e($feriadoEdit['nome'] ?? '') ?>"
+              <input name="nome" class="form-control" required value="<?= e($f_val('nome', (string) ($feriadoEdit['nome'] ?? ''))) ?>"
                      placeholder="Aniversário da cidade">
               <div class="form-text">Sai assim na lista do mês e no calendário impresso.</div>
             </div>
@@ -62,7 +65,7 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
               // quatro é o que vale quando o feriado é novo.
               $f_atual = $f_cats[array_key_first($f_cats)] ?? null;
               foreach ($f_cats as $f_c) {
-                  if ((int) ($feriadoEdit['categoria_id'] ?? 0) === (int) $f_c['id']) {
+                  if ((int) $f_val('categoria_id', (string) ($feriadoEdit['categoria_id'] ?? '')) === (int) $f_c['id']) {
                       $f_atual = $f_c;
                   }
               }
@@ -136,7 +139,7 @@ $f_mes       = $feriadoEdit['mes'] ?? (getInt('mes') ?: (int) date('n'));
             <div class="col-12" id="camposMovel">
               <label class="form-label">Dias a contar do domingo de Páscoa</label>
               <input type="number" name="deslocamento" class="form-control" style="max-width:200px"
-                     value="<?= (int) ($feriadoEdit['deslocamento'] ?? 0) ?>" min="-200" max="200">
+                     value="<?= (int) $f_val('deslocamento', (string) ($feriadoEdit['deslocamento'] ?? 0)) ?>" min="-200" max="200">
               <div class="form-text">
                 Negativo é antes, positivo é depois: Carnaval <code>-48</code> e <code>-47</code>,
                 Quarta-feira de Cinzas <code>-46</code>, Sexta-feira da Paixão <code>-2</code>,
