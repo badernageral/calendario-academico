@@ -612,6 +612,33 @@ confere('a senha não é guardada', (function () {
 })(), ['acao', 'usuario']);
 $_POST = [];
 
+grupo('A legenda de reposição de horário');
+$db = bancoLimpo();
+// É a única do seed que obriga o dia a contar: o sábado que repõe uma segunda, a
+// quinta que cumpre horário de terça. As outras ou tiram o dia da conta ou não
+// mexem nela.
+confere('vem de fábrica', (function () use ($db) {
+    $st = $db->prepare('SELECT cor, letivo, prioridade, protegida, oculta FROM categorias WHERE nome = ?');
+    $st->execute(['Reposição de horário']);
+    $c = $st->fetch();
+    return [$c['cor'], (int) $c['letivo'], (int) $c['prioridade'], (int) $c['protegida'], (int) $c['oculta']];
+})(), ['#ffbe6f', 1, 50, 0, 0]);
+confere('e é a única que obriga o dia a contar',
+    $db->query('SELECT nome FROM categorias WHERE letivo = 1')->fetchAll(PDO::FETCH_COLUMN),
+    ['Reposição de horário']);
+// Escolhida num evento, ela sozinha faz o sábado contar — sem precisar de
+// "conta como letivo" no evento.
+confere('sozinha, ela faz o sábado contar', (function () use ($db) {
+    $cal = calendarioDeTeste($db);
+    evento($db, $cal, 'Sábado que repõe', ['2026-03-07'],
+        ['categoria_id' => categoriaId($db, 'Reposição de horário'), 'repoe_dow' => 1]);
+    return Engine::paraCalendario($db, $cal)->dia('2026-03-07')['letivo'];
+})(), true);
+// Ela se cadastra e se edita como qualquer outra da tela de Legenda.
+confere('aparece no cadastro de legendas',
+    (int) $db->query("SELECT COUNT(*) FROM categorias
+                       WHERE protegida = 0 AND nome = 'Reposição de horário'")->fetchColumn(), 1);
+
 grupo('Reposição conta sempre como dia letivo');
 // O par do grupo abaixo, na direção contrária: lá é fim de semana letivo sem
 // reposição; aqui é reposição sem letivo. Um dia que cumpre o horário de outro é
@@ -832,8 +859,20 @@ confere('o Ponto Facultativo não entra na junção nem com a cor dos feriados',
         return array_values(array_filter(array_column($l, 'nome'),
             static fn ($n) => str_contains($n, 'Feriado') || $n === 'Ponto Facultativo'));
     })(), ['Feriado', 'Ponto Facultativo']);
-confere('e ela fica na posição da primeira delas',
-    array_search('Feriado', array_column($leg, 'nome'), true), 2);
+// A posição vem de onde estava a primeira das quatro, e não de um número fixo:
+// escrito à mão, este teste quebrava a cada legenda nova acrescentada ao seed,
+// e o que ele guarda é a regra, não a contagem de linhas de hoje.
+confere('e ela fica na posição da primeira delas', (function () use ($db, $cal) {
+    $posicaoDe = static fn (string $nome) => array_search($nome, array_column(
+        legendaDoCalendario(Engine::paraCalendario($db, $cal)->categorias()), 'nome'), true);
+
+    $juntas = $posicaoDe('Feriado');
+    $db->exec("UPDATE categorias SET cor = '#cc0000' WHERE nome = 'Feriado Escolar'");
+    $separadas = $posicaoDe('Feriado Nacional');
+    $db->exec("UPDATE categorias SET cor = '#ff0000' WHERE nome = 'Feriado Escolar'");
+
+    return $juntas !== false && $juntas === $separadas;
+})(), true);
 // Dar cor própria a uma delas desfaz a junção: aí a distinção diz algo no papel.
 // Tudo ou nada: quem diferenciou uma quis ver a diferença, e aí as quatro
 // voltam separadas — não duas juntas e duas soltas.

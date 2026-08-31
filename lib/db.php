@@ -401,6 +401,11 @@ function seed(PDO $pdo): void
         ['Dias Escolares Não Letivos',                    '#d0cece', '#000000', 0,    70, 1, 8],
         ['Ponto Facultativo',                             '#00b050', '#000000', 0,    96, 1, 9],
         ['Planejamento Pedagógico',                       '#1155cc', '#ffffff', 0,    65, 1, 10],
+        // A única que obriga o dia a contar: é o sábado que repõe uma segunda, a
+        // quinta que cumpre horário de terça. As demais ou tiram o dia da conta
+        // ou não mexem nela — esta põe. Com ela escolhida, "Conta como letivo"
+        // pode ficar em "Herdar da categoria" que o dia conta assim mesmo.
+        ['Reposição de horário',                          '#ffbe6f', '#000000', 1,    50, 1, 0],
         // Recesso: cinza como os Dias Escolares Não Letivos, e como eles não
         // conta. Vem com ordem 0 porque abre a legenda impressa.
         ['Recesso',                                       '#d0cece', '#000000', 0,    80, 1, 0],
