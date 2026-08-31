@@ -622,7 +622,7 @@ confere('vem de fábrica', (function () use ($db) {
     $st->execute(['Reposição de horário']);
     $c = $st->fetch();
     return [$c['cor'], (int) $c['letivo'], (int) $c['prioridade'], (int) $c['protegida'], (int) $c['oculta']];
-})(), ['#ffbe6f', 1, 50, 0, 0]);
+})(), ['#ffbe6f', 1, 49, 0, 0]);
 confere('e é a única que obriga o dia a contar',
     $db->query('SELECT nome FROM categorias WHERE letivo = 1')->fetchAll(PDO::FETCH_COLUMN),
     ['Reposição de horário']);
@@ -634,6 +634,25 @@ confere('sozinha, ela faz o sábado contar', (function () use ($db) {
         ['categoria_id' => categoriaId($db, 'Reposição de horário'), 'repoe_dow' => 1]);
     return Engine::paraCalendario($db, $cal)->dia('2026-03-07')['letivo'];
 })(), true);
+// Caindo num dia de abertura ou fechamento de período, quem manda no dia é o
+// marco: ele diz o que aquele dia é no calendário, e a reposição diz só que
+// horário se cumpre nele. Em 50 as duas empatavam, e o motor pinta com `>`
+// estrito — a cor saía da ordem de leitura, a favor da reposição.
+confere('perde para o marco de início e fim de bimestre', (function () use ($db) {
+    $marco = $db->prepare('SELECT prioridade FROM categorias WHERE nome = ?');
+    $marco->execute([CAT_SEMESTRE]);
+    $rep = $db->prepare('SELECT prioridade FROM categorias WHERE nome = ?');
+    $rep->execute(['Reposição de horário']);
+    return (int) $rep->fetchColumn() < (int) $marco->fetchColumn();
+})(), true);
+confere('e o dia de abertura sai com a cor do marco', (function () use ($db) {
+    $cal = calendarioBimestral($db, 'anual', BIMESTRES_TESTE, 'CURSO MARCO');
+    // 02/02 é o início do 1º bimestre, onde o motor escreve o marco
+    evento($db, $cal, 'Segunda com horário de quarta', ['2026-02-02'],
+        ['categoria_id' => categoriaId($db, 'Reposição de horário'), 'repoe_dow' => 3]);
+    return Engine::paraCalendario($db, $cal)->dia('2026-02-02')['categoria']['nome'];
+})(), CAT_SEMESTRE);
+
 // Ela se cadastra e se edita como qualquer outra da tela de Legenda.
 confere('aparece no cadastro de legendas',
     (int) $db->query("SELECT COUNT(*) FROM categorias

@@ -405,7 +405,14 @@ function seed(PDO $pdo): void
         // quinta que cumpre horário de terça. As demais ou tiram o dia da conta
         // ou não mexem nela — esta põe. Com ela escolhida, "Conta como letivo"
         // pode ficar em "Herdar da categoria" que o dia conta assim mesmo.
-        ['Reposição de horário',                          '#ffbe6f', '#000000', 1,    50, 1, 0],
+        //
+        // 49, e não 50: em 50 empatava com o marco de início e fim de bimestre, e
+        // o motor pinta com `>` estrito — no empate a cor do dia saía da ordem em
+        // que os eventos foram lidos, não de uma regra. Caindo a reposição num dia
+        // de abertura ou fechamento de período, quem manda no dia é o marco: ele
+        // diz o que aquele dia é no calendário, e a reposição diz só que horário
+        // se cumpre nele.
+        ['Reposição de horário',                          '#ffbe6f', '#000000', 1,    49, 1, 0],
         // Recesso: cinza como os Dias Escolares Não Letivos, e como eles não
         // conta. Vem com ordem 0 porque abre a legenda impressa.
         ['Recesso',                                       '#d0cece', '#000000', 0,    80, 1, 0],
