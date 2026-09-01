@@ -433,6 +433,44 @@ confere('com a data deslocada para o ano novo', (function () use ($db, $destino)
     return $st->fetchColumn();
 })(), '2027-03-07');
 
+grupo('Dia letivo que sobra entre os bimestres');
+// O semestre vai do início do primeiro bimestre ao fim do segundo. Um vão entre
+// os dois deixa dias contando no semestre e em bimestre nenhum, e a soma das
+// duas linhas do resumo para de fechar sem nada dizer por quê.
+$db = bancoLimpo();
+
+// O 3º bimestre fecha na sexta 09/10 e o 4º abre na segunda 12/10: o vão é o fim
+// de semana, e o sábado dele é letivo. É o caso real — um sábado de reposição
+// entre o fim de um bimestre e o começo do outro.
+$comVao = calendarioBimestral($db, 'anual', [
+    1 => ['2026-02-02', '2026-04-20'], 2 => ['2026-04-22', '2026-07-02'],
+    3 => ['2026-07-30', '2026-10-09'], 4 => ['2026-10-12', '2026-12-18'],
+], 'CURSO COM VÃO');
+evento($db, $comVao, 'Sábado letivo', ['2026-10-10'], ['conta_letivo' => 1, 'repoe_dow' => 2]);
+$eng = Engine::paraCalendario($db, $comVao);
+confere('o sábado do vão é apontado',
+    $eng->diasForaDosBimestres(), ['2026-10-10']);
+confere('e é ele que faz a soma não fechar', [
+    $eng->contagemBimestre(3)['total'] + $eng->contagemBimestre(4)['total'],
+    $eng->contagemSemestre(2)['total'],
+], [$eng->contagemSemestre(2)['total'] - 1, $eng->contagemSemestre(2)['total']]);
+
+// Vão sem dia letivo dentro não é problema, e é o caso comum: entre o 1º e o 2º
+// bimestre costuma haver um feriado, que não conta para ninguém. 21/04 é
+// Tiradentes, e o vão acima entre 20/04 e 22/04 é exatamente ele.
+confere('vão só com feriado dentro não é apontado', (function () use ($db) {
+    $cal = calendarioBimestral($db, 'anual', [
+        1 => ['2026-02-02', '2026-04-20'], 2 => ['2026-04-22', '2026-07-02'],
+        3 => ['2026-07-30', '2026-10-08'], 4 => ['2026-10-09', '2026-12-18'],
+    ], 'CURSO SEM VÃO');
+    return Engine::paraCalendario($db, $cal)->diasForaDosBimestres();
+})(), []);
+
+// Sem os quatro bimestres não há o que comparar: o calendário anterior a eles
+// já tem o próprio aviso na tela.
+confere('calendário sem bimestres não aponta nada',
+    Engine::paraCalendario($db, calendarioDeTeste($db))->diasForaDosBimestres(), []);
+
 grupo('A ordem da lista do mês');
 $db  = bancoLimpo();
 $cal = calendarioDeTeste($db);

@@ -142,6 +142,27 @@ $contadores = [
   </div>
 <?php endif; ?>
 
+<?php
+// Dia letivo dentro do semestre e fora dos dois bimestres dele. Acontece quando
+// as oito datas deixam um vão com dia letivo dentro — um sábado de reposição
+// entre o fim de um bimestre e o começo do outro, tipicamente. O semestre o
+// conta, os bimestres não, e a soma para de fechar sem nada dizer por quê: era
+// preciso somar as duas linhas à mão para desconfiar.
+$foraDosBimestres = $eng->diasForaDosBimestres();
+?>
+<?php if ($foraDosBimestres): ?>
+  <div class="alert alert-warning d-flex" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+    <div>
+      <?= count($foraDosBimestres) === 1 ? 'Um dia letivo está' : count($foraDosBimestres) . ' dias letivos estão' ?>
+      <strong>dentro do semestre e fora dos bimestres dele</strong>:
+      <?= e(implode(', ', array_map('dataBr', array_slice($foraDosBimestres, 0, 6)))) ?><?=
+          count($foraDosBimestres) > 6 ? ' e mais ' . (count($foraDosBimestres) - 6) : '' ?>.
+      Por isso a soma dos dois bimestres não fecha com o total do semestre, no resumo abaixo.
+    </div>
+  </div>
+<?php endif; ?>
+
 <div class="card border-0 shadow-sm mb-4">
   <div class="faixa-contadores">
     <?php foreach ($contadores as [$g_rot, $g_val, $g_classe]): ?>

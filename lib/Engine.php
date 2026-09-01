@@ -295,6 +295,48 @@ final class Engine
         return $this->bimestres;
     }
 
+    /**
+     * Dias letivos que caem dentro de um semestre e fora dos dois bimestres dele.
+     *
+     * O semestre vai do início do primeiro bimestre ao fim do segundo, então um
+     * vão entre os dois — as oito datas digitadas com um buraco no meio — deixa
+     * dias contando no semestre e em bimestre nenhum. A soma dos dois bimestres
+     * para de fechar com a do semestre, e nada na tela dizia por quê: era preciso
+     * somar à mão para desconfiar.
+     *
+     * Vão sem dia letivo dentro não entra aqui, e é o caso comum: entre o 1º e o
+     * 2º bimestre costuma haver um feriado, que não conta para ninguém.
+     *
+     * @return string[] em Y-m-d, na ordem do ano
+     */
+    public function diasForaDosBimestres(): array
+    {
+        if (count($this->bimestres) < 4) {
+            return [];
+        }
+        $fora = [];
+        foreach ($this->semestres as $n => $sem) {
+            $doSemestre = array_filter(
+                $this->bimestres,
+                static fn (int $b): bool => semestreDoBimestre($b) === (int) $n,
+                ARRAY_FILTER_USE_KEY
+            );
+            foreach ($this->dias as $iso => $dia) {
+                if (!$dia['letivo'] || $iso < $sem['inicio'] || $iso > $sem['fim']) {
+                    continue;
+                }
+                foreach ($doSemestre as $b) {
+                    if ($iso >= $b['inicio'] && $iso <= $b['fim']) {
+                        continue 2;
+                    }
+                }
+                $fora[] = $iso;
+            }
+        }
+        sort($fora);
+        return $fora;
+    }
+
     /** true = os semestres não foram cadastrados e o ano inteiro está contando. */
     public function semestresImplicitos(): bool
     {
