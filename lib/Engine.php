@@ -92,10 +92,7 @@ final class Engine
 
     public static function paraCalendario(PDO $db, int $id): ?self
     {
-        $st = $db->prepare(
-            'SELECT c.*, cu.nome AS curso_nome, cu.nivel AS curso_nivel, cu.regime AS curso_regime
-             FROM calendarios c JOIN cursos cu ON cu.id = c.curso_id WHERE c.id = ?'
-        );
+        $st = $db->prepare(baseCalendarios() . ' WHERE c.id = ?');
         $st->execute([$id]);
         $cal = $st->fetch();
         return $cal ? new self($db, $cal) : null;
@@ -775,8 +772,13 @@ final class Engine
      */
     public static function trocasDoTitulo(string $curso, string $chaveNivel, int $ano): array
     {
+        // maiusculas() é idempotente num nome de curso, que já nasce em
+        // caixa alta em cursos.php — mas o nome de um nível não passa por
+        // lá, e um calendário vinculado a nível usa o nome dele aqui. Sem
+        // isto, o título saía com {nivel} em caixa alta e {curso} não, os
+        // dois vindos do mesmo nível.
         return [
-            '{curso}' => $curso,
+            '{curso}' => maiusculas($curso),
             '{nivel}' => maiusculas((string) (niveisCurso()[$chaveNivel] ?? '')),
             '{ano}'   => (string) $ano,
         ];

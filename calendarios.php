@@ -8,13 +8,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acao = post('acao');
 
     if ($acao === 'novo') {
-        $curso = postInt('curso_id');
-        $ano   = postInt('ano');
-        if (!$curso || !$ano) {
-            guardarPost();
-            flash('Escolha o curso e informe o ano.', 'erro');
-            redirect('calendarios.php?novo=1');
+        // Campus pequeno faz um calendário por curso; campus grande, um só por
+        // nível — os cursos daquele nível compartilham as mesmas datas. Nunca
+        // os dois vínculos juntos, e o regime vem do curso escolhido ou, sem
+        // curso nenhum por trás, do que a tela pedir para escolher.
+        $porNivel = post('vinculo') === 'nivel';
+        $ano      = postInt('ano');
+        $curso    = null;
+        $nivel    = null;
+        $regime   = null;
+
+        if ($porNivel) {
+            $nivel  = post('nivel_chave');
+            $regime = post('regime');
+            if (!isset(niveisCurso()[$nivel]) || !isset(regimesCurso()[$regime]) || !$ano) {
+                guardarPost();
+                flash('Escolha o nível, o regime e informe o ano.', 'erro');
+                redirect('calendarios.php?novo=1');
+            }
+        } else {
+            $curso = postInt('curso_id');
+            if (!$curso || !$ano) {
+                guardarPost();
+                flash('Escolha o curso e informe o ano.', 'erro');
+                redirect('calendarios.php?novo=1');
+            }
+            $regime = regimeDoCurso($db, $curso);
         }
+
         // A mesma faixa do campo do formulário: um ano fora dela geraria um
         // calendário que nenhuma tela por ano alcança depois.
         if ($ano !== anoDaTela($ano, 0)) {
@@ -22,8 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('O ano precisa ficar entre ' . ANO_MIN . ' e ' . ANO_MAX . '.', 'erro');
             redirect('calendarios.php?novo=1');
         }
-        // Os rótulos do erro dependem do regime do curso escolhido.
-        [$bimestres, $erro] = bimestresDoFormulario(regimeDoCurso($db, $curso), $ano);
+        // Os rótulos do erro dependem do regime do curso ou do escolhido para o nível.
+        [$bimestres, $erro] = bimestresDoFormulario($regime, $ano);
         if ($erro !== '') {
             guardarPost();
             flash($erro, 'erro');
@@ -35,11 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db->beginTransaction();
         try {
             $st = $db->prepare(
-                'INSERT INTO calendarios (curso_id, ano, situacao, local_texto, observacoes)
-                 VALUES (?,?,?,?,?)'
+                'INSERT INTO calendarios (curso_id, nivel, ano, regime, situacao, local_texto, observacoes)
+                 VALUES (?,?,?,?,?,?,?)'
             );
             $st->execute([
-                $curso, $ano,
+                $curso, $nivel, $ano, $regime,
                 post('situacao', cfg('situacao')),
                 post('local_texto'),
                 post('observacoes'),
@@ -50,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (PDOException $ex) {
             $db->rollBack();
             guardarPost();
-            flash('Já existe um calendário desse curso para ' . $ano . '.', 'erro');
+            flash('Já existe um calendário desse ' . ($porNivel ? 'nível' : 'curso') . ' para ' . $ano . '.', 'erro');
             redirect('calendarios.php?novo=1');
         } catch (Throwable $ex) {
             $db->rollBack();
@@ -75,11 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $cursos = $db->query('SELECT * FROM cursos WHERE ativo = 1 ORDER BY nome')->fetchAll();
+$niveis = niveisCurso();
 $cals   = $db->query(
-    'SELECT c.*, cu.nome AS curso_nome,
-            (SELECT COUNT(*) FROM eventos e WHERE e.calendario_id = c.id) AS n_eventos
-     FROM calendarios c JOIN cursos cu ON cu.id = c.curso_id
-     ORDER BY c.ano DESC, cu.nome'
+    baseCalendarios(', (SELECT COUNT(*) FROM eventos e WHERE e.calendario_id = c.id) AS n_eventos')
+    . ' ORDER BY c.ano DESC, curso_nome'
 )->fetchAll();
 
 // O formulário abre com as datas prováveis dos bimestres já preenchidas. Como
@@ -147,12 +167,16 @@ head('Calendários', 'calendarios');
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
-          <tr><th>Curso</th><th>Ano</th><th>Situação</th><th class="text-center">Eventos locais</th><th class="text-end">Ações</th></tr>
+          <tr><th>Curso / Nível</th><th>Ano</th><th>Situação</th><th class="text-center">Eventos locais</th><th class="text-end">Ações</th></tr>
         </thead>
         <tbody>
         <?php foreach ($cals as $c): ?>
           <tr>
-            <td class="fw-semibold"><?= e($c['curso_nome']) ?></td>
+            <td class="fw-semibold"><?= e($c['curso_nome']) ?>
+              <?php if ($c['curso_id'] === null): ?>
+                <span class="badge bg-light text-secondary border ms-1" title="Vale para todos os cursos deste nível">nível</span>
+              <?php endif; ?>
+            </td>
             <td><?= (int) $c['ano'] ?></td>
             <td><span class="badge bg-light text-secondary border"><?= e($c['situacao']) ?></span></td>
             <td class="text-center"><?= (int) $c['n_eventos'] ?></td>
@@ -187,17 +211,24 @@ head('Calendários', 'calendarios');
  *   cobrem toda a faixa que o campo aceita — nenhum ano digitável fica de fora;
  * - trocar o **ano** acerta também o ano do "local e data", que é texto livre e
  *   ficava para trás;
- * - trocar o **curso** troca os rótulos dos campos, porque um curso anual tem
- *   1º a 4º bimestre e um semestral tem 1º e 2º em cada semestre. As datas não
- *   se mexem: o que muda é só como cada campo se chama.
+ * - trocar **vincular por** mostra o bloco do curso ou o do nível, e tira do
+ *   envio os campos do bloco escondido — um select desabilitado não vai no
+ *   POST, e assim o servidor recebe só o que faz sentido para o vínculo
+ *   escolhido;
+ * - trocar o **curso** (ou o **regime**, no vínculo por nível) troca os
+ *   rótulos dos campos, porque um regime anual tem 1º a 4º bimestre e um
+ *   semestral tem 1º e 2º em cada semestre. As datas não se mexem: o que muda
+ *   é só como cada campo se chama.
  */
 (function () {
   var SUGESTOES = <?= json_encode($sugestoes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   var REGIMES   = <?= json_encode($regimePorCurso, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   var ROTULOS   = <?= json_encode($rotulosPorRegime, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-  var ano   = document.getElementById('anoCalendario');
-  var curso = document.querySelector('#modalCalendario [name="curso_id"]');
+  var ano     = document.getElementById('anoCalendario');
+  var vinculo = document.querySelector('#modalCalendario [name="vinculo"]');
+  var curso   = document.querySelector('#modalCalendario [name="curso_id"]');
+  var regime  = document.querySelector('#modalCalendario [name="regime"]');
   if (!ano || !curso) { return; }
 
   ano.addEventListener('change', function () {
@@ -230,13 +261,35 @@ head('Calendários', 'calendarios');
   }
 
   function rotular() {
-    var r = ROTULOS[REGIMES[curso.value] || 'semestral'];
+    var chaveRegime = (vinculo && vinculo.value === 'nivel') ? (regime ? regime.value : '') : REGIMES[curso.value];
+    var r = ROTULOS[chaveRegime || 'semestral'];
     if (!r) { return; }
     curso.form.querySelectorAll('[data-rotulo]').forEach(function (el) {
       if (r[el.dataset.rotulo]) { el.textContent = r[el.dataset.rotulo]; }
     });
   }
+
+  /**
+   * O bloco escondido some da tela e do envio: os selects dele ficam
+   * desabilitados, porque um select desabilitado não entra no POST — sem
+   * isso, o servidor receberia os dois vínculos ao mesmo tempo.
+   */
+  function alternarVinculo() {
+    var porNivel = vinculo.value === 'nivel';
+    vinculo.form.querySelectorAll('[data-bloco-vinculo]').forEach(function (bloco) {
+      var deste = (bloco.dataset.blocoVinculo === 'nivel') === porNivel;
+      bloco.classList.toggle('d-none', !deste);
+      bloco.querySelectorAll('select').forEach(function (sel) { sel.disabled = !deste; });
+    });
+    rotular();
+  }
+
+  if (vinculo) {
+    vinculo.addEventListener('change', alternarVinculo);
+    alternarVinculo();
+  }
   curso.addEventListener('change', rotular);
+  if (regime) { regime.addEventListener('change', rotular); }
   rotular();
 })();
 </script>

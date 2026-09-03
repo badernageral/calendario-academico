@@ -4,9 +4,11 @@
  * $db e $calEdit (a linha do calendário em edição, ou null para um novo).
  *
  * Na edição, espera também $voltarPara — a URL da tela que abriu o modal — e o
- * curso e o ano aparecem travados: são eles que identificam o calendário, e
- * trocá-los faria dele outro. Na criação, espera $cursos, $cals, $anoPadrao e
- * $sugestoes, que é de onde saem as datas prováveis de cada ano.
+ * vínculo (curso ou nível) e o ano aparecem travados: são eles que identificam
+ * o calendário, e trocá-los faria dele outro. Na criação, espera $cursos,
+ * $cals, $anoPadrao e $sugestoes, que é de onde saem as datas prováveis de
+ * cada ano; o curso é um por um, mas o nível é um só para todos os cursos
+ * daquele nível — a diferença entre um campus pequeno e um grande.
  *
  * Fica em modal porque as oito datas dos bimestres se conferem olhando a grade:
  * é dela que se abre, inclusive clicando num marco de início ou fim de bimestre,
@@ -81,20 +83,47 @@ if ($c_novo) {
           <?php endif; ?>
 
           <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">Curso</label>
-              <?php if ($c_novo): ?>
-                <select name="curso_id" class="form-select" required>
+            <?php if ($c_novo): ?>
+              <div class="col-md-3">
+                <label class="form-label">Vincular por</label>
+                <select name="vinculo" class="form-select">
+                  <option value="curso" <?= $c_val('vinculo', 'curso') === 'curso' ? 'selected' : '' ?>>Curso</option>
+                  <option value="nivel" <?= $c_val('vinculo') === 'nivel' ? 'selected' : '' ?>>Nível</option>
+                </select>
+                <div class="form-text">Um por curso, ou um só para todo o nível.</div>
+              </div>
+              <div class="col-md-5" data-bloco-vinculo="curso">
+                <label class="form-label">Curso</label>
+                <select name="curso_id" class="form-select">
                   <?php foreach ($cursos as $c_c): ?>
                     <option value="<?= $c_c['id'] ?>"
                             <?= $c_val('curso_id') === (string) $c_c['id'] ? 'selected' : '' ?>><?= e($c_c['nome']) ?></option>
                   <?php endforeach; ?>
                 </select>
-              <?php else: ?>
+              </div>
+              <div class="col-md-3 d-none" data-bloco-vinculo="nivel">
+                <label class="form-label">Nível</label>
+                <select name="nivel_chave" class="form-select" disabled>
+                  <?php foreach (niveisCurso() as $c_k => $c_v): ?>
+                    <option value="<?= e($c_k) ?>" <?= $c_val('nivel_chave') === $c_k ? 'selected' : '' ?>><?= e($c_v) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-2 d-none" data-bloco-vinculo="nivel">
+                <label class="form-label">Regime</label>
+                <select name="regime" class="form-select" disabled>
+                  <?php foreach (regimesCurso() as $c_k => $c_v): ?>
+                    <option value="<?= e($c_k) ?>" <?= $c_val('regime') === $c_k ? 'selected' : '' ?>><?= e($c_v) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            <?php else: ?>
+              <div class="col-md-6">
+                <label class="form-label"><?= $calEdit['curso_id'] !== null ? 'Curso' : 'Nível' ?></label>
                 <input class="form-control" value="<?= e($calEdit['curso_nome']) ?>" disabled>
-                <div class="form-text">O curso e o ano não mudam depois de criado.</div>
-              <?php endif; ?>
-            </div>
+                <div class="form-text">O vínculo e o ano não mudam depois de criado.</div>
+              </div>
+            <?php endif; ?>
             <div class="col-md-2">
               <label class="form-label">Ano</label>
               <?php if ($c_novo): ?>
@@ -186,4 +215,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <?php endif; ?>
-<?php unset($c_erro, $c_novo, $c_valores, $c_k, $c_regime, $c_ano, $c_abrir, $c_salvos, $c_n, $c_i, $c_f, $c_c); ?>
+<?php unset($c_erro, $c_novo, $c_valores, $c_k, $c_v, $c_regime, $c_ano, $c_abrir, $c_salvos, $c_n, $c_i, $c_f, $c_c); ?>

@@ -17,10 +17,8 @@ $nBase   = $num("SELECT COUNT(*) FROM eventos WHERE calendario_id IS NULL AND an
 $nFer    = $num('SELECT COUNT(*) FROM feriados');
 
 $cals = $db->query(
-    'SELECT c.*, cu.nome AS curso_nome,
-            (SELECT COUNT(*) FROM eventos e WHERE e.calendario_id = c.id) AS n_eventos
-     FROM calendarios c JOIN cursos cu ON cu.id = c.curso_id
-     ORDER BY c.ano DESC, cu.nome LIMIT 8'
+    baseCalendarios(', (SELECT COUNT(*) FROM eventos e WHERE e.calendario_id = c.id) AS n_eventos')
+    . ' ORDER BY c.ano DESC, curso_nome LIMIT 8'
 )->fetchAll();
 
 $cartoes = [

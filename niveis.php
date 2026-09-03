@@ -53,12 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('niveis.php');
         }
 
-        // Excluir um nível em uso deixaria cursos órfãos e eventos restritos a
-        // um nível que não existe mais — some da tela e do cálculo sem aviso.
+        // Excluir um nível em uso deixaria cursos órfãos, eventos restritos a
+        // um nível que não existe mais e, agora, calendários vinculados
+        // direto a ele sem curso nenhum por trás — some da tela e do cálculo
+        // sem aviso.
         $emUso  = usoDoNivel($db, $nivel['chave']);
         $partes = [];
         if ($emUso['cursos']) {
             $partes[] = $emUso['cursos'] . ' curso' . ($emUso['cursos'] === 1 ? '' : 's');
+        }
+        if ($emUso['calendarios']) {
+            $partes[] = $emUso['calendarios'] . ' calendário' . ($emUso['calendarios'] === 1 ? '' : 's');
         }
         if ($emUso['eventos']) {
             $partes[] = $emUso['eventos'] . ' evento' . ($emUso['eventos'] === 1 ? '' : 's');
@@ -77,19 +82,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-/** Quantos cursos e eventos globais dependem de um nível. */
+/** Quantos cursos, calendários por nível e eventos globais dependem de um nível. */
 function usoDoNivel(PDO $db, string $chave): array
 {
     $st = $db->prepare('SELECT COUNT(*) FROM cursos WHERE nivel = ?');
     $st->execute([$chave]);
     $cursos = (int) $st->fetchColumn();
 
+    $st = $db->prepare('SELECT COUNT(*) FROM calendarios WHERE nivel = ?');
+    $st->execute([$chave]);
+    $calendarios = (int) $st->fetchColumn();
+
     // O evento guarda as chaves separadas por vírgula; as vírgulas nas pontas
     // evitam que "superior" case com "superior_novo".
     $st = $db->prepare("SELECT COUNT(*) FROM eventos WHERE ',' || nivel || ',' LIKE '%,' || ? || ',%'");
     $st->execute([$chave]);
 
-    return ['cursos' => $cursos, 'eventos' => (int) $st->fetchColumn()];
+    return ['cursos' => $cursos, 'calendarios' => $calendarios, 'eventos' => (int) $st->fetchColumn()];
 }
 
 $edit = null;

@@ -59,16 +59,29 @@ CREATE TABLE IF NOT EXISTS feriados (
         OR (tipo = 'movel' AND deslocamento IS NOT NULL))
 );
 
+-- Um calendário liga a um curso (campus pequeno: um por curso) OU a um nível
+-- inteiro (campus grande: um só para todos os cursos daquele nível) — nunca os
+-- dois, nunca nenhum. `nivel` guarda a mesma chave de niveis.chave que
+-- cursos.nivel e eventos.nivel já usam, e não uma segunda forma de referência.
+-- `regime` nasce copiado do curso (vínculo por curso) ou escolhido no
+-- formulário (vínculo por nível, que não tem um regime próprio) e não muda
+-- depois — assim como o curso/nível e o ano, que também são travados na
+-- criação.
 CREATE TABLE IF NOT EXISTS calendarios (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    curso_id        INTEGER NOT NULL REFERENCES cursos(id) ON DELETE CASCADE,
+    curso_id        INTEGER REFERENCES cursos(id) ON DELETE CASCADE,
+    nivel           TEXT REFERENCES niveis(chave) ON DELETE CASCADE,
     ano             INTEGER NOT NULL,
+    regime          TEXT NOT NULL DEFAULT 'semestral',
     situacao        TEXT NOT NULL DEFAULT 'Aguardando homologação',
     local_texto     TEXT NOT NULL DEFAULT '',   -- ex.: Lagoa da Confusão, outubro de 2025
     observacoes     TEXT NOT NULL DEFAULT '',
     criado_em       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-    UNIQUE (curso_id, ano)
+    CHECK (regime IN ('anual','semestral')),
+    CHECK ((curso_id IS NULL) != (nivel IS NULL))
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_calendarios_curso_ano ON calendarios(curso_id, ano) WHERE curso_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_calendarios_nivel_ano ON calendarios(nivel, ano) WHERE nivel IS NOT NULL;
 
 -- Quem entra no sistema. Perfil único: quem tem senha faz tudo, e não há papel
 -- de leitura — nem gerar.php se alcança sem sessão. A senha nunca é guardada,

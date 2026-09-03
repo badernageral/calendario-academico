@@ -630,6 +630,28 @@ function semestreDoBimestre(int $numero): int
     return $numero <= 2 ? 1 : 2;
 }
 
+/**
+ * O SELECT comum a toda tela que lista ou abre um calendário: o nome e o
+ * nível vêm do curso quando é vínculo por curso, ou do próprio nível quando é
+ * vínculo por nível — nunca os dois presentes ao mesmo tempo. O regime não
+ * depende de join nenhum: mora no próprio calendário desde a criação.
+ *
+ * $colunasExtra entra na lista do SELECT, antes do FROM — para telas que
+ * somam, por exemplo, a contagem de eventos do calendário. Quem chama
+ * completa o retorno com WHERE/ORDER BY conforme a tela precisa.
+ */
+function baseCalendarios(string $colunasExtra = ''): string
+{
+    return "SELECT c.*,
+                   COALESCE(cu.nome, ni.nome) AS curso_nome,
+                   COALESCE(cu.nivel, c.nivel) AS curso_nivel,
+                   c.regime AS curso_regime
+                   $colunasExtra
+            FROM calendarios c
+            LEFT JOIN cursos cu ON cu.id = c.curso_id
+            LEFT JOIN niveis ni ON ni.chave = c.nivel";
+}
+
 /** O regime do curso, com o padrão de sempre se o curso sumiu. */
 function regimeDoCurso(PDO $db, int $cursoId): string
 {

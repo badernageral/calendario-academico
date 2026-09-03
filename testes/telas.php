@@ -38,7 +38,7 @@ $db = db();
 $db->prepare('INSERT INTO cursos (nome, nivel, regime, ativo) VALUES (?,?,?,1)')
    ->execute(['CURSO DE FUMAÇA', 'integrado', 'anual']);
 $curso = (int) $db->lastInsertId();
-$db->prepare('INSERT INTO calendarios (curso_id, ano) VALUES (?,?)')->execute([$curso, 2026]);
+$db->prepare('INSERT INTO calendarios (curso_id, ano, regime) VALUES (?,?,?)')->execute([$curso, 2026, 'anual']);
 $cal = (int) $db->lastInsertId();
 $feriado = (int) $db->query('SELECT MIN(id) FROM feriados')->fetchColumn();
 // O sistema pede login: sem um usuário, tudo redireciona para o primeiro acesso

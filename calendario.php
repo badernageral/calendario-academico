@@ -7,10 +7,7 @@ require __DIR__ . '/lib/calendario_crud.php';
 $db = db();
 $id = getInt('id') ?: postInt('cal_id', 0);
 
-$st = $db->prepare(
-    'SELECT c.*, cu.nome AS curso_nome, cu.nivel AS curso_nivel, cu.regime AS curso_regime
-     FROM calendarios c JOIN cursos cu ON cu.id = c.curso_id WHERE c.id = ?'
-);
+$st = $db->prepare(baseCalendarios() . ' WHERE c.id = ?');
 $st->execute([$id]);
 $cal = $st->fetch();
 if (!$cal) {

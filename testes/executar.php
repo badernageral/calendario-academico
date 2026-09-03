@@ -786,17 +786,100 @@ confere('um subconjunto fica gravado',              niveisParaBanco(['superior',
 confere('nível inventado é ignorado',               niveisParaBanco(['superior', 'inexistente']), 'superior');
 confere('chave nasce do nome, sem acento',          chaveNivel('Técnico Integrado'), 'tecnico_integrado');
 
-/** Curso + calendário + os quatro bimestres. Devolve o id do calendário. */
+/**
+ * Curso + calendário + os quatro bimestres. Devolve o id do calendário.
+ *
+ * O regime vai também no calendário, e não só no curso: desde que o
+ * calendário passou a poder nascer sem curso (vínculo por nível), é o
+ * `calendarios.regime` que o motor lê — gravá-lo só no curso deixaria o
+ * regime do teste sempre em 'semestral', o padrão da coluna.
+ */
 function calendarioBimestral(PDO $db, string $regime, array $bimestres, string $curso = 'CURSO BIM'): int
 {
     $db->prepare('INSERT INTO cursos (nome, nivel, regime, ativo) VALUES (?,?,?,1)')
        ->execute([$curso, 'superior', $regime]);
-    $db->prepare('INSERT INTO calendarios (curso_id, ano) VALUES (?,?)')
-       ->execute([(int) $db->lastInsertId(), ANO]);
+    $db->prepare('INSERT INTO calendarios (curso_id, ano, regime) VALUES (?,?,?)')
+       ->execute([(int) $db->lastInsertId(), ANO, $regime]);
     $calId = (int) $db->lastInsertId();
     salvarPeriodos($db, $calId, $bimestres);
     return $calId;
 }
+
+/** Calendário vinculado a um nível inteiro, sem curso nenhum por trás. */
+function calendarioPorNivel(PDO $db, string $nivelChave, string $regime, array $bimestres): int
+{
+    $db->prepare('INSERT INTO calendarios (nivel, ano, regime) VALUES (?,?,?)')
+       ->execute([$nivelChave, ANO, $regime]);
+    $calId = (int) $db->lastInsertId();
+    salvarPeriodos($db, $calId, $bimestres);
+    return $calId;
+}
+
+grupo('Calendário vinculado a um nível inteiro, sem curso por trás');
+$db  = bancoLimpo();
+$cal = calendarioPorNivel($db, 'integrado', 'anual', BIMESTRES_TESTE);
+evento($db, null, 'Só para o integrado',    ['2026-03-12'], ['nivel' => 'integrado']);
+evento($db, null, 'Só para o subsequente',  ['2026-03-13'], ['nivel' => 'subsequente']);
+
+$eng = Engine::paraCalendario($db, $cal);
+confere('o nome mostrado é o do nível',       $eng->cal['curso_nome'], 'Técnico Integrado');
+confere('o nível gravado é a chave do nível', $eng->cal['curso_nivel'], 'integrado');
+confere('o regime é o gravado no calendário, não um padrão', $eng->cal['curso_regime'], 'anual');
+confere('o motor calcula os dias letivos normalmente', $eng->contagemSemestre(1)['total'] > 0, true);
+
+$descricoes = array_values(array_unique(array_column(
+    array_filter($eng->eventos(), static fn ($ev) => !isset($ev['feriado_id'])), 'descricao'
+)));
+confere(
+    'o calendário do nível vê o evento do próprio nível e não o de outro',
+    in_array('Só para o integrado', $descricoes, true) && !in_array('Só para o subsequente', $descricoes, true),
+    true
+);
+
+grupo('Um calendário não pode ter os dois vínculos, nem nenhum');
+$db = bancoLimpo();
+$db->prepare('INSERT INTO cursos (nome, nivel, ativo) VALUES (?,?,1)')->execute(['CURSO X', 'superior']);
+$curso = (int) $db->lastInsertId();
+$falhouComOsDois = false;
+try {
+    $db->prepare('INSERT INTO calendarios (curso_id, nivel, ano) VALUES (?,?,?)')->execute([$curso, 'integrado', ANO]);
+} catch (PDOException $ex) {
+    $falhouComOsDois = true;
+}
+confere('curso_id e nivel juntos violam o CHECK', $falhouComOsDois, true);
+
+$falhouSemNenhum = false;
+try {
+    $db->prepare('INSERT INTO calendarios (curso_id, nivel, ano) VALUES (NULL, NULL, ?)')->execute([ANO]);
+} catch (PDOException $ex) {
+    $falhouSemNenhum = true;
+}
+confere('nem curso_id nem nivel também viola o CHECK', $falhouSemNenhum, true);
+
+grupo('Dois calendários do mesmo nível no mesmo ano não podem coexistir');
+$db = bancoLimpo();
+calendarioPorNivel($db, 'integrado', 'anual', BIMESTRES_TESTE);
+$duplicouNivel = false;
+try {
+    $db->prepare('INSERT INTO calendarios (nivel, ano) VALUES (?,?)')->execute(['integrado', ANO]);
+} catch (PDOException $ex) {
+    $duplicouNivel = true;
+}
+confere('o mesmo nível e ano batem no índice único', $duplicouNivel, true);
+
+grupo('Um nível em uso por um calendário aparece na contagem que bloqueia a exclusão');
+$db = bancoLimpo();
+calendarioPorNivel($db, 'integrado', 'anual', BIMESTRES_TESTE);
+// A mesma consulta que usoDoNivel(), de niveis.php, faz para decidir se
+// bloqueia a exclusão — replicada aqui porque aquele arquivo é uma tela
+// inteira, não uma biblioteca, e não se inclui num teste sem executá-la.
+$st = $db->prepare('SELECT COUNT(*) FROM calendarios WHERE nivel = ?');
+$st->execute(['integrado']);
+confere('o calendário vinculado ao nível entra na contagem de uso', (int) $st->fetchColumn(), 1);
+// Sem isto, o cursor de uma consulta de uma linha só fica "ativo" até o fim do
+// arquivo — nada mais reatribui $st depois daqui —, e trava de verdade o
+// DROP TABLE de mais adiante, na suíte de migrações.
+$st->closeCursor();
 
 /** As datas com os textos que o motor escreveu nelas, na ordem do ano. */
 function marcosDe(Engine $e): array
