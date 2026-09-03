@@ -110,6 +110,7 @@ $contadores = [
   <a class="btn btn-sm btn-outline-secondary" href="calendarios.php"><i class="bi bi-arrow-left me-1"></i>Calendários</a>
   <a class="btn btn-sm btn-outline-primary" href="<?= e($voltarPara) ?>&editar_cal=1"><i class="bi bi-sliders me-1"></i>Dados e bimestres</a>
   <a class="btn btn-sm btn-outline-dark" href="gerar.php?id=<?= $id ?>" target="_blank"><i class="bi bi-printer me-1"></i>Gerar calendário</a>
+  <a class="btn btn-sm btn-outline-success" href="exportar_xls.php?id=<?= $id ?>"><i class="bi bi-file-earmark-excel me-1"></i>Exportar XLS</a>
   <?php if ($ev): ?>
     <a class="btn btn-sm btn-primary" href="<?= e($voltarPara) ?>&novo=1"><i class="bi bi-plus-lg me-1"></i>Novo evento</a>
   <?php else: ?>

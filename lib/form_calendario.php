@@ -101,21 +101,14 @@ if ($c_novo) {
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-3 d-none" data-bloco-vinculo="nivel">
+              <div class="col-md-5 d-none" data-bloco-vinculo="nivel">
                 <label class="form-label">Nível</label>
                 <select name="nivel_chave" class="form-select" disabled>
                   <?php foreach (niveisCurso() as $c_k => $c_v): ?>
                     <option value="<?= e($c_k) ?>" <?= $c_val('nivel_chave') === $c_k ? 'selected' : '' ?>><?= e($c_v) ?></option>
                   <?php endforeach; ?>
                 </select>
-              </div>
-              <div class="col-md-2 d-none" data-bloco-vinculo="nivel">
-                <label class="form-label">Regime</label>
-                <select name="regime" class="form-select" disabled>
-                  <?php foreach (regimesCurso() as $c_k => $c_v): ?>
-                    <option value="<?= e($c_k) ?>" <?= $c_val('regime') === $c_k ? 'selected' : '' ?>><?= e($c_v) ?></option>
-                  <?php endforeach; ?>
-                </select>
+                <div class="form-text">Um calendário por nível é sempre anual: os bimestres correm de 1º a 4º, sem repetir por semestre.</div>
               </div>
             <?php else: ?>
               <div class="col-md-6">

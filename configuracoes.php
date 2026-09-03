@@ -4,9 +4,11 @@ require __DIR__ . '/lib/boot.php';
 $db = db();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
-    // O modelo do título sem {curso} sairia igual em todo calendário — deixa
-    // passar, mas avisa, porque quase sempre é engano.
-    $modelo = post('titulo_modelo') !== '' ? post('titulo_modelo') : cfgPadroes()['titulo_modelo'];
+    // O modelo do título sem {curso} sairia igual em todo calendário por
+    // curso — deixa passar, mas avisa, porque quase sempre é engano. O
+    // modelo por nível tem o mesmo risco, só que com {nivel}.
+    $modelo      = post('titulo_modelo') !== '' ? post('titulo_modelo') : cfgPadroes()['titulo_modelo'];
+    $modeloNivel = post('titulo_modelo_nivel') !== '' ? post('titulo_modelo_nivel') : cfgPadroes()['titulo_modelo_nivel'];
 
     // Cor que não seja #rrggbb cai no padrão de fábrica — a peneira está em
     // postCor(), a mesma que a tela de legenda usa.
@@ -21,7 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
         'orgao'         => post('orgao'),
         'campus'        => post('campus'),
         'cidade'        => post('cidade'),
-        'titulo_modelo' => $modelo,
+        'titulo_modelo'       => $modelo,
+        'titulo_modelo_nivel' => $modeloNivel,
         'situacao'      => post('situacao'),
         'cor_dia_util'  => $cor('cor_dia_util'),
         'cor_dia_fds'   => $cor('cor_dia_fds'),
@@ -44,15 +47,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('acao') === 'salvar') {
         $up->execute([$nova, corDeTexto($nova), (int) $cat['id']]);
     }
 
-    flash(str_contains($modelo, '{curso}')
+    $avisos = [];
+    if (!str_contains($modelo, '{curso}')) {
+        $avisos[] = 'o modelo por curso não usa {curso}';
+    }
+    if (!str_contains($modeloNivel, '{nivel}')) {
+        $avisos[] = 'o modelo por nível não usa {nivel}';
+    }
+    flash($avisos === []
         ? 'Configurações salvas.'
-        : 'Configurações salvas — atenção: o modelo do título não usa {curso}, então todo calendário sairá com o mesmo título.');
+        : 'Configurações salvas — atenção: ' . implode(', e ', $avisos) . ', então esse título sairá sempre igual.');
     redirect('configuracoes.php');
 }
 
-// Amostra do título com um curso de verdade, para conferir o modelo sem gerar.
+// Amostra dos dois títulos, um com curso de verdade e outro só com o nível,
+// para conferir os modelos sem precisar abrir um calendário.
 $amostra = $db->query('SELECT nome, nivel FROM cursos ORDER BY ativo DESC, nome LIMIT 1')->fetch()
     ?: ['nome' => 'AGRONOMIA', 'nivel' => (string) array_key_first(niveisCurso())];
+$tituloAmostraNivel = strtr(cfg('titulo_modelo_nivel'), Engine::trocasDoTitulo(
+    '', (string) $amostra['nivel'], (int) date('Y')
+));
 $tituloAmostra = strtr(cfg('titulo_modelo'), Engine::trocasDoTitulo(
     (string) $amostra['nome'], (string) $amostra['nivel'], (int) date('Y')
 ));
@@ -93,12 +107,25 @@ head('Configurações', 'configuracoes');
       <i class="bi bi-printer me-1 text-primary"></i>Documento gerado
     </div>
     <div class="card-body">
-      <label class="form-label">Modelo do título</label>
-      <input name="titulo_modelo" class="form-control" value="<?= e(cfg('titulo_modelo')) ?>">
-      <div class="form-text">
-        <code>{curso}</code>, <code>{nivel}</code> e <code>{ano}</code> são trocados na hora de
-        gerar; o nível sai em maiúsculas, como o resto do título. Hoje sai:
-        <strong><?= e($tituloAmostra) ?></strong>
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">Modelo do título — calendário por curso</label>
+          <input name="titulo_modelo" class="form-control" value="<?= e(cfg('titulo_modelo')) ?>">
+          <div class="form-text">
+            <code>{curso}</code>, <code>{nivel}</code> e <code>{ano}</code> são trocados na hora de
+            gerar; o nível sai em maiúsculas, como o resto do título. Hoje sai:
+            <strong><?= e($tituloAmostra) ?></strong>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Modelo do título — calendário por nível</label>
+          <input name="titulo_modelo_nivel" class="form-control" value="<?= e(cfg('titulo_modelo_nivel')) ?>">
+          <div class="form-text">
+            Vale só para um calendário vinculado a um nível inteiro, sem curso atrás — não há
+            <code>{curso}</code> aqui para trocar, só <code>{nivel}</code> e <code>{ano}</code>. Hoje sai:
+            <strong><?= e($tituloAmostraNivel) ?></strong>
+          </div>
+        </div>
       </div>
     </div>
   </div>

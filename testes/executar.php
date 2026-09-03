@@ -1082,6 +1082,15 @@ confere('nível que não existe mais não quebra o título',
 confere('o modelo antigo, sem {nivel}, continua valendo',
     strtr('CALENDÁRIO DO CURSO {curso} {ano}', Engine::trocasDoTitulo('AGRICULTURA', 'integrado', ANO)),
     'CALENDÁRIO DO CURSO AGRICULTURA 2026');
+confere('um calendário por curso usa o modelo de curso',
+    $eng->titulo(),
+    strtr(cfgPadroes()['titulo_modelo'], Engine::trocasDoTitulo('AGRICULTURA', 'integrado', ANO)));
+
+$calNivel = calendarioPorNivel($db, 'integrado', 'anual', BIMESTRES_TESTE);
+$engNivel = Engine::paraCalendario($db, $calNivel);
+confere('um calendário por nível usa o modelo de nível, não o de curso',
+    $engNivel->titulo(),
+    strtr(cfgPadroes()['titulo_modelo_nivel'], Engine::trocasDoTitulo('Técnico Integrado', 'integrado', ANO)));
 
 grupo('Contagem por bimestre');
 $db  = bancoLimpo();

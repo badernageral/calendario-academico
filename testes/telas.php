@@ -146,6 +146,7 @@ $telas = [
     // A tela antiga virou caminho para o modal: responde 302.
     "editar_calendario.php?id=$cal",
     "gerar.php?id=$cal",
+    "exportar_xls.php?id=$cal",
     'cursos.php',
     'eventos.php',
     'eventos.php?ano=2027',

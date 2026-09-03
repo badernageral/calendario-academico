@@ -759,7 +759,12 @@ final class Engine
      */
     public function titulo(): string
     {
-        return strtr(cfg('titulo_modelo'), self::trocasDoTitulo(
+        // Um calendário por nível não tem curso nenhum atrás — vale para
+        // todos os do nível —, então o modelo com {curso} sairia com o
+        // campo vazio. É outro modelo, configurado à parte.
+        $porNivel = ($this->cal['curso_id'] ?? null) === null;
+        $chaveModelo = $porNivel ? 'titulo_modelo_nivel' : 'titulo_modelo';
+        return strtr(cfg($chaveModelo), self::trocasDoTitulo(
             (string) $this->cal['curso_nome'],
             (string) ($this->cal['curso_nivel'] ?? ''),
             (int) $this->cal['ano']

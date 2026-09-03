@@ -446,7 +446,11 @@ function cfgPadroes(): array
         'orgao'          => "MINISTÉRIO DA EDUCAÇÃO\nSECRETARIA DE EDUCAÇÃO PROFISSIONAL E TECNOLÓGICA\nINSTITUTO FEDERAL DE EDUCAÇÃO, CIÊNCIA E TECNOLOGIA DO TOCANTINS",
         'campus'         => 'CAMPUS MIDGARD',
         'cidade'         => 'Midgard',
-        'titulo_modelo'  => 'CALENDÁRIO DO CURSO {nivel} EM {curso} / {ano}',
+        'titulo_modelo'       => 'CALENDÁRIO DO CURSO {nivel} EM {curso} / {ano}',
+        // Um calendário por nível não tem um curso para nomear — vale para
+        // todos os daquele nível —, então o modelo do curso, com {curso},
+        // sairia com o campo vazio. Este é o modelo desses calendários.
+        'titulo_modelo_nivel' => 'CALENDÁRIO DOS CURSOS DE NÍVEL {nivel} / {ano}',
         'situacao'       => 'Aguardando homologação',
         // Os quatro textos que o motor escreve sozinho nos dias de início e fim
         // de bimestre e de semestre. {ano} é o ano do calendário, {semestre} é

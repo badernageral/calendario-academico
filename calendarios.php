@@ -10,8 +10,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'novo') {
         // Campus pequeno faz um calendário por curso; campus grande, um só por
         // nível — os cursos daquele nível compartilham as mesmas datas. Nunca
-        // os dois vínculos juntos, e o regime vem do curso escolhido ou, sem
-        // curso nenhum por trás, do que a tela pedir para escolher.
+        // os dois vínculos juntos. Um calendário por nível é sempre anual: só
+        // se agrupam num nível só os cursos que já correm nesse regime — um
+        // curso semestral continua precisando do calendário dele, por curso.
         $porNivel = post('vinculo') === 'nivel';
         $ano      = postInt('ano');
         $curso    = null;
@@ -20,10 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($porNivel) {
             $nivel  = post('nivel_chave');
-            $regime = post('regime');
-            if (!isset(niveisCurso()[$nivel]) || !isset(regimesCurso()[$regime]) || !$ano) {
+            $regime = 'anual';
+            if (!isset(niveisCurso()[$nivel]) || !$ano) {
                 guardarPost();
-                flash('Escolha o nível, o regime e informe o ano.', 'erro');
+                flash('Escolha o nível e informe o ano.', 'erro');
                 redirect('calendarios.php?novo=1');
             }
         } else {
@@ -184,6 +185,7 @@ head('Calendários', 'calendarios');
               <a class="btn btn-sm btn-outline-secondary" href="editar_calendario.php?id=<?= $c['id'] ?>" title="Dados e bimestres"><i class="bi bi-pencil me-1"></i>Editar</a>
               <a class="btn btn-sm btn-outline-primary" href="calendario.php?id=<?= $c['id'] ?>" title="Grade e eventos"><i class="bi bi-grid-3x3 me-1"></i>Gerenciar</a>
               <a class="btn btn-sm btn-outline-dark" href="gerar.php?id=<?= $c['id'] ?>" target="_blank"><i class="bi bi-printer me-1"></i>Gerar</a>
+              <a class="btn btn-sm btn-outline-success" href="exportar_xls.php?id=<?= $c['id'] ?>" title="Exportar XLS"><i class="bi bi-file-earmark-excel"></i></a>
               <form method="post" class="d-inline" onsubmit="return confirm('Excluir o calendário e todos os seus eventos?')">
                 <?= csrfCampo() ?>
                 <input type="hidden" name="acao" value="excluir">
@@ -215,10 +217,11 @@ head('Calendários', 'calendarios');
  *   envio os campos do bloco escondido — um select desabilitado não vai no
  *   POST, e assim o servidor recebe só o que faz sentido para o vínculo
  *   escolhido;
- * - trocar o **curso** (ou o **regime**, no vínculo por nível) troca os
- *   rótulos dos campos, porque um regime anual tem 1º a 4º bimestre e um
- *   semestral tem 1º e 2º em cada semestre. As datas não se mexem: o que muda
- *   é só como cada campo se chama.
+ * - trocar o **curso** troca os rótulos dos campos, porque um regime anual
+ *   tem 1º a 4º bimestre e um semestral tem 1º e 2º em cada semestre — no
+ *   vínculo por nível nem se pergunta, porque um calendário de nível é
+ *   sempre anual. As datas não se mexem: o que muda é só como cada campo se
+ *   chama.
  */
 (function () {
   var SUGESTOES = <?= json_encode($sugestoes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -228,7 +231,6 @@ head('Calendários', 'calendarios');
   var ano     = document.getElementById('anoCalendario');
   var vinculo = document.querySelector('#modalCalendario [name="vinculo"]');
   var curso   = document.querySelector('#modalCalendario [name="curso_id"]');
-  var regime  = document.querySelector('#modalCalendario [name="regime"]');
   if (!ano || !curso) { return; }
 
   ano.addEventListener('change', function () {
@@ -261,7 +263,7 @@ head('Calendários', 'calendarios');
   }
 
   function rotular() {
-    var chaveRegime = (vinculo && vinculo.value === 'nivel') ? (regime ? regime.value : '') : REGIMES[curso.value];
+    var chaveRegime = (vinculo && vinculo.value === 'nivel') ? 'anual' : REGIMES[curso.value];
     var r = ROTULOS[chaveRegime || 'semestral'];
     if (!r) { return; }
     curso.form.querySelectorAll('[data-rotulo]').forEach(function (el) {
@@ -289,7 +291,6 @@ head('Calendários', 'calendarios');
     alternarVinculo();
   }
   curso.addEventListener('change', rotular);
-  if (regime) { regime.addEventListener('change', rotular); }
   rotular();
 })();
 </script>
