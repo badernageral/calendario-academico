@@ -1055,15 +1055,13 @@ $porNome = [];
 foreach (feriadosDoAno($db, 2026) as $f) {
     $porNome[$f['nome']] = [$f['data'], $f['categoria_nome']];
 }
-// Os quatro estaduais do Tocantins entram de fábrica: valem igual em todo
+// Os três estaduais do Tocantins entram de fábrica: valem igual em todo
 // campus do estado, ao contrário dos municipais, que cada um cadastra.
 confere('os estaduais do Tocantins', array_intersect_key($porNome, array_flip([
-    'Dia da Autonomia do Estado do Tocantins',
     'Dia do Senhor do Bonfim',
     'Nossa Senhora da Natividade, padroeira do Tocantins',
     'Criação do Estado do Tocantins',
 ])), [
-    'Dia da Autonomia do Estado do Tocantins'             => ['2026-03-18', 'Feriado Estadual'],
     'Dia do Senhor do Bonfim'                             => ['2026-08-15', 'Feriado Estadual'],
     'Nossa Senhora da Natividade, padroeira do Tocantins' => ['2026-09-08', 'Feriado Estadual'],
     'Criação do Estado do Tocantins'                      => ['2026-10-05', 'Feriado Estadual'],

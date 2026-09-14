@@ -320,7 +320,6 @@ function semearFeriados(PDO $pdo): void
         ['Dia Nacional de Zumbi e da Consciência Negra',        'fixo',  20, 11, null, 'Feriado Nacional'],
         ['Natal',                                               'fixo',  25, 12, null, 'Feriado Nacional'],
 
-        ['Dia da Autonomia do Estado do Tocantins',             'fixo',  18, 3,  null, 'Feriado Estadual'],
         ['Dia do Senhor do Bonfim',                             'fixo',  15, 8,  null, 'Feriado Estadual'],
         ['Nossa Senhora da Natividade, padroeira do Tocantins', 'fixo',  8,  9,  null, 'Feriado Estadual'],
         ['Criação do Estado do Tocantins',                      'fixo',  5,  10, null, 'Feriado Estadual'],
