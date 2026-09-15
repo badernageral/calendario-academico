@@ -20,6 +20,41 @@ define('DB_PATH', getenv('CALENDARIO_DB') ?: APP_ROOT . '/data/calendario.sqlite
  */
 const PRIORIDADE_MAX = 94;
 
+/**
+ * Trava cooperativa, mantida até o fim da requisição. Nunca apagar este arquivo:
+ * todos os processos precisam disputar o mesmo inode, inclusive após a troca.
+ * Ferramentas externas devem parar durante uma restauração.
+ */
+function travarBanco(bool $exclusivo = false): void
+{
+    static $trava = null;
+    static $exclusiva = false;
+    if (is_resource($trava)) {
+        if ($exclusivo && !$exclusiva) {
+            throw new RuntimeException('A restauração deve começar antes de abrir o banco.');
+        }
+        return;
+    }
+    if (!is_dir(dirname(DB_PATH)) && !mkdir(dirname(DB_PATH), 0775, true) && !is_dir(dirname(DB_PATH))) {
+        throw new RuntimeException('Não foi possível criar a pasta do banco.');
+    }
+    $arquivo = @fopen(DB_PATH . '.lock', 'c');
+    if ($arquivo === false) {
+        throw new RuntimeException('Não foi possível abrir a trava do banco.');
+    }
+    $limite = microtime(true) + 5;
+    do {
+        if (flock($arquivo, ($exclusivo ? LOCK_EX : LOCK_SH) | LOCK_NB)) {
+            $trava = $arquivo;
+            $exclusiva = $exclusivo;
+            return;
+        }
+        usleep(50000);
+    } while (microtime(true) < $limite);
+    fclose($arquivo);
+    throw new RuntimeException('O banco está em uso. Aguarde alguns instantes e tente novamente.');
+}
+
 function db(): PDO
 {
     static $pdo = null;
@@ -27,6 +62,7 @@ function db(): PDO
         return $pdo;
     }
 
+    travarBanco();
     $novo = !file_exists(DB_PATH);
     if (!is_dir(dirname(DB_PATH))) {
         mkdir(dirname(DB_PATH), 0775, true);

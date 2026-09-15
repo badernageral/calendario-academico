@@ -16,3 +16,7 @@ __pycache__/
 desktop/node_modules/
 desktop/runtime/
 desktop/dist/
+
+# Trava e arquivos temporários de restauração.
+data/*.sqlite.lock
+data/.restaurar-*

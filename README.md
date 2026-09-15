@@ -410,6 +410,7 @@ divergência.
 
     php testes/executar.php
     php testes/telas.php
+    php testes/backup.php
 
 A primeira cobre o motor — a única parte do sistema que decide alguma coisa
 sozinha: a contagem de dias letivos, a precedência entre categorias, o feriado
@@ -507,3 +508,22 @@ da pasta de instalação, para uma atualização não levar nada junto. Quem dec
 isso são as variáveis de ambiente `CALENDARIO_DB` e `CALENDARIO_BACKUPS`, que o
 `desktop/main.js` passa ao PHP; sem elas — no Apache — valem `data/` e
 `backups/` do próprio site.
+
+### Segurança da restauração
+
+A restauração prepara e valida um banco temporário, aplica suas migrações e exige
+uma cópia de segurança íntegra antes de substituir o banco atual. Se a preparação
+ou a cópia de segurança falhar, o banco atual é preservado.
+
+Os acessos da aplicação usam `data/calendario.sqlite.lock` (ou o caminho de
+`CALENDARIO_DB` com o sufixo `.lock`). A restauração exige a trava exclusiva;
+requisições normais compartilham a trava. A espera é limitada a cinco segundos.
+Não apague o arquivo de trava enquanto o sistema estiver em uso. O usuário do
+servidor precisa poder criar e abrir esse arquivo, assim como os arquivos SQLite.
+
+Ferramentas externas que abrem o SQLite diretamente não participam dessa trava:
+interrompa importadores e acessos manuais antes de restaurar. O SQLite consolida
+seus arquivos auxiliares antes da troca; a aplicação não os apaga à força.
+O arquivo preparado fica na mesma pasta do banco e substitui o original por
+`rename`. Se o sistema operacional recusar a troca, a restauração falha e mantém
+o original. A cópia de segurança anterior também permanece disponível.

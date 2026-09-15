@@ -1371,13 +1371,7 @@ $db->exec('DELETE FROM migracoes');
 marcarMigracoesComoAplicadas($db);
 
 grupo('O que a importação de backup aceita');
-// motivoParaRecusar() vive em backup.php, que é uma tela: o teste lê o trecho
-// das funções e o avalia, para não disparar a tela inteira.
-(function () {
-    $src = (string) file_get_contents(__DIR__ . '/../backup.php');
-    $ini = strpos($src, 'const TABELAS_ESPERADAS');
-    eval(substr($src, $ini, strpos($src, '// ── Exportar') - $ini));
-})();
+require_once __DIR__ . '/../lib/backup.php';
 $arquivo = static function (callable $ajusta): string {
     $caminho = sys_get_temp_dir() . '/calendario-import-' . getmypid() . '-' . uniqid() . '.sqlite';
     $antigo = getenv('CALENDARIO_DB');

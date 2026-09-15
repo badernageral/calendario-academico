@@ -34,8 +34,23 @@ jobs:
       - name: Rodar a suíte
         run: php testes/executar.php
 
+      - name: Testar restauração de backups
+        run: php testes/backup.php
+
       # A suíte acima não abre página nenhuma. Este passo sobe o servidor
       # embutido e abre todas, cobrando 200 e log sem aviso do PHP — é o que
       # pega a coluna esquecida num SELECT ou o require fora de ordem.
       - name: Abrir todas as telas
         run: php testes/telas.php
+
+  backup-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite
+          coverage: none
+      - name: Testar restauração no Windows
+        run: php testes/backup.php
