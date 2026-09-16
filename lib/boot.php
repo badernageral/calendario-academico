@@ -15,6 +15,7 @@ require __DIR__ . '/layout.php';
 require __DIR__ . '/feriados.php';   // o motor monta os feriados do ano a partir do cadastro
 require __DIR__ . '/Engine.php';
 require __DIR__ . '/auth.php';
+require __DIR__ . '/atualizacoes.php';   // o menu (em layout.php) mostra o aviso em toda tela
 
 // Todo POST passa por aqui antes de qualquer tela olhar para ele. É o único
 // ponto de conferência do token justamente para não depender de cada tela

@@ -16,7 +16,9 @@ function head(string $titulo, string $ativo = ''): void
         ['configuracoes.php', 'Configurações',   'bi-gear',           'configuracoes'],
         ['usuarios.php',      'Usuários',        'bi-people',         'usuarios'],
         ['backup.php',        'Backup',          'bi-shield-check',   'backup'],
+        ['atualizacoes.php',  'Atualizações',    'bi-arrow-repeat',   'atualizacoes'],
     ];
+    $atualizacao = atualizacaoDisponivel();
     ?><!doctype html>
 <html lang="pt-BR">
 <head>
@@ -45,13 +47,21 @@ function head(string $titulo, string $ativo = ''): void
     <li class="nav-item">
       <a href="<?= $url ?>" class="nav-link <?= $ativo === $chave ? 'active' : '' ?>">
         <i class="bi <?= $ico ?> me-2"></i> <span><?= e($rot) ?></span>
+        <?php if ($chave === 'atualizacoes' && $atualizacao): ?>
+          <i class="bi bi-circle-fill text-warning ms-1" style="font-size:.4rem;vertical-align:middle" title="Nova versão disponível"></i>
+        <?php endif; ?>
       </a>
     </li>
     <?php endforeach; ?>
   </ul>
 
   <div class="px-3 py-2 mt-auto sidebar-footer small">
-    Calendário Acadêmico &bull; v1.0
+    Calendário Acadêmico &bull; v<?= e(APP_VERSION) ?>
+    <?php if ($atualizacao): ?>
+      <a href="atualizacoes.php" class="d-block mt-1 text-decoration-none" title="Ver detalhes da atualização">
+        <i class="bi bi-arrow-up-circle-fill me-1"></i>Nova versão v<?= e($atualizacao['versao_disponivel']) ?>
+      </a>
+    <?php endif; ?>
   </div>
 </nav>
 
@@ -64,6 +74,11 @@ function head(string $titulo, string $ativo = ''): void
       <span class="navbar-brand mb-0 fw-semibold text-dark"><?= e($titulo) ?></span>
     </div>
     <div class="d-flex align-items-center gap-3">
+      <?php if ($atualizacao): ?>
+        <a href="atualizacoes.php" class="small text-warning-emphasis text-decoration-none" title="Nova versão v<?= e($atualizacao['versao_disponivel']) ?> disponível">
+          <i class="bi bi-arrow-up-circle-fill me-1"></i><span class="d-none d-md-inline">Nova versão disponível</span>
+        </a>
+      <?php endif; ?>
       <?php if (cfg('campus') !== ''): ?>
         <span class="small text-muted d-none d-md-inline"><i class="bi bi-building me-1"></i><?= e(cfg('campus')) ?></span>
       <?php endif; ?>
