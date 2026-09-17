@@ -1556,6 +1556,72 @@ confere('azul escuro pede texto branco',         corDeTexto('#1155cc'), '#ffffff
 confere('preto pede texto branco',               corDeTexto('#000000'), '#ffffff');
 confere('branco pede texto preto',               corDeTexto('#ffffff'), '#000000');
 
+grupo('O pacote .xlsx');
+require_once __DIR__ . '/../lib/xlsx.php';
+/**
+ * Lê o .zip de volta pelo diretório central, sem ZipArchive — que é justamente
+ * a extensão que a exportação não pode exigir.
+ *
+ * @return array<string, string> caminho dentro do pacote => conteúdo
+ */
+$abrirPacote = static function (string $bytes): array {
+    $fim = strrpos($bytes, "PK\x05\x06");
+    if ($fim === false) {
+        return [];
+    }
+    $eocd = unpack('vdisco/vcd/vaqui/vtotal/Vtamanho/Vinicio', substr($bytes, $fim + 4, 18));
+    /** Um campo do cabeçalho, pelo deslocamento que o formato fixa para ele. */
+    $campo = static fn (int $onde, string $tipo) => (int) unpack($tipo, substr($bytes, $onde, $tipo === 'V' ? 4 : 2))[1];
+
+    $pos = $eocd['inicio'];
+    $arquivos = [];
+    for ($i = 0; $i < $eocd['total']; $i++) {
+        $metodo     = $campo($pos + 10, 'v');
+        $comprimido = $campo($pos + 20, 'V');
+        $tamNome    = $campo($pos + 28, 'v');
+        $tamExtra   = $campo($pos + 30, 'v');
+        $tamComent  = $campo($pos + 32, 'v');
+        $local      = $campo($pos + 42, 'V');
+        $nome       = substr($bytes, $pos + 46, $tamNome);
+
+        // O cabeçalho local tem 30 bytes fixos e repete o nome depois deles.
+        $dados = substr($bytes, $local + 30 + $campo($local + 26, 'v') + $campo($local + 28, 'v'), $comprimido);
+        $arquivos[$nome] = $metodo === 8 ? (string) gzinflate($dados) : $dados;
+
+        $pos += 46 + $tamNome + $tamExtra + $tamComent;
+    }
+    return $arquivos;
+};
+$xl = new Xlsx();
+$aba = $xl->folha('Jan-Mar');
+$xl->celula($aba, 1, 1, 'Reposição & avaliação', $xl->estilo(['bg' => '#ccc1da', 'negrito' => true]));
+$xl->celula($aba, 2, 1, 15);
+$xl->folha('Resumo');
+$pacote = $abrirPacote($xl->bytes());
+
+confere('as partes obrigatórias do OOXML estão todas lá', array_keys($pacote), [
+    '[Content_Types].xml', '_rels/.rels', 'xl/workbook.xml',
+    'xl/_rels/workbook.xml.rels', 'xl/styles.xml',
+    'xl/worksheets/sheet1.xml', 'xl/worksheets/sheet2.xml',
+]);
+confere('e voltam inteiras do zip', str_contains($pacote['xl/worksheets/sheet1.xml'] ?? '', 'Reposição &amp; avaliação'), true);
+confere('número sai como número, sem t=', str_contains($pacote['xl/worksheets/sheet1.xml'] ?? '', '<c r="A2" s="0"><v>15</v></c>'), true);
+// Cada XML do pacote precisa abrir num parser: um & solto ou uma tag aberta
+// derruba o Excel inteiro com "conteúdo ilegível", sem dizer onde. A suíte não
+// exige extensão nenhuma, então a conferência roda onde há um parser (a CI tem)
+// e fica de fora onde não há, em vez de derrubar a suíte pela própria falta.
+if (function_exists('simplexml_load_string')) {
+    confere('todo XML do pacote é bem formado', array_values(array_filter(
+        array_keys($pacote),
+        static fn (string $n) => simplexml_load_string($pacote[$n]) === false
+    )), []);
+}
+// A conta de altura media o texto em caracteres; com bytes, cada acento
+// contava por dois e a linha saía alta demais — e sem mbstring, que o README
+// promete ser opcional, ela nem chegava a rodar.
+confere('a altura conta caracteres, não bytes',
+    Xlsx::alturaParaTexto('ãééçõ', 10, 10), Xlsx::alturaParaTexto('aeeco', 10, 10));
+
 grupo('Cor que chega pelo formulário');
 confere('#rrggbb passa, em minúsculas', (function () { $_POST['c'] = '#FF00AA'; return postCor('c', '#000000'); })(), '#ff00aa');
 confere('cor com aspas cai no padrão',  (function () { $_POST['c'] = '#fff" onmouseover="alert(1)'; return postCor('c', '#000000'); })(), '#000000');

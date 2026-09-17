@@ -44,7 +44,6 @@ $eTotalNum  = $xl->estilo(['negrito' => true, 'tamanho' => 9.5, 'centro' => true
 $eTotalTxt  = $xl->estilo(['negrito' => true, 'tamanho' => 9.5, 'borda' => true]);
 $eEvento    = $xl->estilo(['tamanho' => 8, 'borda' => true, 'quebra' => true]);
 $eEventoNeg = $xl->estilo(['tamanho' => 8, 'negrito' => true, 'borda' => true, 'quebra' => true]);
-$eRodape    = $xl->estilo(['tamanho' => 8]);
 $eNota      = $xl->estilo(['tamanho' => 8, 'quebra' => true]);
 
 /** Estilo de uma célula com a cor da categoria do dia, criado sob demanda. */
@@ -144,11 +143,6 @@ foreach ($trimestres as $nomeAba => $meses) {
         }
         $xl->largura($folha, $col0 + 7, 2);
     }
-
-    $ultimaLinha = $linha + 1;
-    $xl->celula($folha, $ultimaLinha, 1, 'Situação: ' . $cal['situacao'], $eRodape);
-    $xl->celula($folha, $ultimaLinha, 9, $cal['local_texto'], $eRodape);
-    $xl->celula($folha, $ultimaLinha, 17, 'Compilado em ' . date('d/m/Y'), $eRodape);
 }
 
 // ── Aba de resumo: os dois semestres, notas de reposição, observações e a

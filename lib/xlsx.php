@@ -8,8 +8,10 @@ declare(strict_types=1);
  * formatação numérica — só o que a exportação do calendário precisa.
  *
  * Existe porque o sistema não tem nenhuma dependência de fora (nem Composer),
- * e um `.xlsx` é só um .zip com XML dentro — o `ZipArchive` do próprio PHP
- * escreve o pacote inteiro sem precisar de mais nada.
+ * e um `.xlsx` é só um .zip com XML dentro — algumas dezenas de linhas no fim
+ * desta classe escrevem o pacote, sem `ZipArchive` e sem mbstring: nenhuma das
+ * duas é garantida numa instalação de PHP, e a exportação não vale quebrar as
+ * exigências que o README promete (só `pdo_sqlite` e `calendar`).
  */
 final class Xlsx
 {
@@ -132,8 +134,23 @@ final class Xlsx
         // fator mais folgado (calculado, 1.8) deixava a altura curta demais e
         // uma linha quebrada em duas invadia a linha de baixo.
         $caracteresPorLinha = max(1, (int) round($largura * 1.4));
-        $linhas = max(1, (int) ceil(mb_strlen($texto) / $caracteresPorLinha));
+        $linhas = max(1, (int) ceil(self::tamanho($texto) / $caracteresPorLinha));
         return $linhas * $pontosPorLinha + 4;
+    }
+
+    /**
+     * Caracteres de um texto UTF-8, sem depender da mbstring — contar bytes
+     * daria a mais em cada acento, e uma linha de eventos cheia de "ç" e "ã"
+     * ganhava altura de sobra.
+     */
+    private static function tamanho(string $s): int
+    {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($s, 'UTF-8');
+        }
+        // Todo caractere UTF-8 tem exatamente um byte que não é continuação
+        // (10xxxxxx); jogar fora os de continuação deixa um byte por caractere.
+        return strlen((string) preg_replace('/[\x80-\xBF]/', '', $s));
     }
 
     /** Uma célula, texto ou número — `is_numeric` decide o tipo gravado. */
@@ -208,26 +225,68 @@ final class Xlsx
         uasort($this->planilhas, static fn ($a, $b) => $a['ordem'] <=> $b['ordem']);
         $nomes = array_keys($this->planilhas);
 
-        $tmp = tempnam(sys_get_temp_dir(), 'xlsx_');
-        $zip = new ZipArchive();
-        $zip->open($tmp, ZipArchive::OVERWRITE);
-
-        $zip->addFromString('[Content_Types].xml', $this->contentTypes(count($nomes)));
-        $zip->addFromString('_rels/.rels', $this->relsRaiz());
-        $zip->addFromString('xl/workbook.xml', $this->workbook($nomes));
-        $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRels(count($nomes)));
-        $zip->addFromString('xl/styles.xml', $this->styles());
+        $arquivos = [
+            '[Content_Types].xml'        => $this->contentTypes(count($nomes)),
+            '_rels/.rels'                => $this->relsRaiz(),
+            'xl/workbook.xml'            => $this->workbook($nomes),
+            'xl/_rels/workbook.xml.rels' => $this->workbookRels(count($nomes)),
+            'xl/styles.xml'              => $this->styles(),
+        ];
 
         $i = 1;
         foreach ($nomes as $nome) {
-            $zip->addFromString('xl/worksheets/sheet' . $i . '.xml', $this->sheet($this->planilhas[$nome]));
+            $arquivos['xl/worksheets/sheet' . $i . '.xml'] = $this->sheet($this->planilhas[$nome]);
             $i++;
         }
 
-        $zip->close();
-        $conteudo = (string) file_get_contents($tmp);
-        unlink($tmp);
-        return $conteudo;
+        return self::zipar($arquivos);
+    }
+
+    /**
+     * Empacota os arquivos num .zip: cabeçalho local + conteúdo de cada um, o
+     * diretório central no fim e o registro que fecha o arquivo. É o formato
+     * inteiro que o .xlsx precisa — sem senha, sem pasta, sem Zip64 (o pacote
+     * de um calendário não chega perto dos 4 GB).
+     *
+     * @param array<string, string> $arquivos caminho dentro do zip => conteúdo
+     */
+    private static function zipar(array $arquivos): string
+    {
+        // Data e hora no formato do MS-DOS, que é o que o cabeçalho guarda:
+        // hora em 5+6+5 bits (segundos de dois em dois) e data contada de 1980.
+        $t    = getdate();
+        $hora = ($t['hours'] << 11) | ($t['minutes'] << 5) | intdiv($t['seconds'], 2);
+        $data = (($t['year'] - 1980) << 9) | ($t['mon'] << 5) | $t['mday'];
+
+        $locais  = '';
+        $central = '';
+        $offset  = 0;
+
+        foreach ($arquivos as $nome => $conteudo) {
+            $crc   = crc32($conteudo);
+            $bruto = strlen($conteudo);
+
+            // zlib costuma estar compilada junto, mas se não estiver o arquivo
+            // vai inteiro, sem compressão: um .zip válido do mesmo jeito.
+            $metodo     = function_exists('gzdeflate') ? 8 : 0;
+            $comprimido = $metodo === 8 ? (string) gzdeflate($conteudo, 9) : $conteudo;
+            $tamanho    = strlen($comprimido);
+
+            $comum = pack('vvvvvVVVvv', 20, 0, $metodo, $hora, $data, $crc, $tamanho, $bruto, strlen($nome), 0);
+
+            $locais .= "PK\x03\x04" . $comum . $nome . $comprimido;
+
+            // O diretório central repete os mesmos campos e acrescenta onde o
+            // cabeçalho local de cada arquivo começou.
+            $central .= "PK\x01\x02" . pack('v', 20) . $comum
+                . pack('vvvVV', 0, 0, 0, 0, $offset) . $nome;
+
+            $offset += 30 + strlen($nome) + $tamanho;
+        }
+
+        $n = count($arquivos);
+        return $locais . $central . "PK\x05\x06"
+            . pack('vvvvVVv', 0, 0, $n, $n, strlen($central), $offset, 0);
     }
 
     private function contentTypes(int $nSheets): string
