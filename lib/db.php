@@ -7,7 +7,7 @@ const APP_ROOT = __DIR__ . '/..';
 
 // Comparada com a tag mais recente do GitHub em lib/atualizacoes.php — bump
 // junto com a tag a cada release, senão o checker vive acusando atualização.
-const APP_VERSION = '1.0';
+const APP_VERSION = '1.1';
 
 // No Apache o banco fica em data/, dentro do site. No aplicativo desktop ele
 // precisa ficar fora da pasta de instalação, para sobreviver a uma atualização

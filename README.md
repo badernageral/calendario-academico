@@ -527,3 +527,33 @@ seus arquivos auxiliares antes da troca; a aplicação não os apaga à força.
 O arquivo preparado fica na mesma pasta do banco e substitui o original por
 `rename`. Se o sistema operacional recusar a troca, a restauração falha e mantém
 o original. A cópia de segurança anterior também permanece disponível.
+
+## Lançar uma versão
+
+Uma versão nova não é só um commit: são **dois arquivos de versão, uma tag e o
+push da tag**, nesta ordem. Os quatro passos andam juntos — quem faz um sem os
+outros deixa o sistema mentindo para quem o usa.
+
+1. **`lib/db.php`** — `const APP_VERSION` para a versão nova (`'1.1'`).
+2. **`desktop/package.json`** — o campo `version`, com os três números que o
+   npm exige (`1.1.0`). É ele que nomeia o instalador,
+   `Calendario-Academico-Setup-1.1.0.exe`.
+3. **Commit** dos dois, e a **tag** com o `v` na frente — é o formato que o
+   workflow escuta e que a tela de Atualizações desconta ao comparar:
+
+        git commit -am "Sobe para a versão 1.1"
+        git tag v1.1
+        git push origin main --tags
+
+4. **A tag empurrada dispara sozinha** o workflow *Build Desktop (Windows)*
+   (`.github/workflows/desktop-build.yml`): ele baixa o PHP portátil, gera o
+   `.exe` e cria a Release já com o instalador anexado. Não há release para
+   publicar à mão — conferir em *Actions* que o build passou basta.
+
+Por que os quatro juntos: `lib/atualizacoes.php` pergunta ao GitHub a tag do
+último release, 1x por dia, e compara com `APP_VERSION`. **Tag sem bump** deixa
+toda instalação — inclusive a de quem já está atualizado — com o aviso de "nova
+versão disponível" pendurado no menu para sempre. **Bump sem tag** faz o
+contrário: a correção sai e ninguém fica sabendo, porque não há release mais
+novo que o checker enxergue. E uma tag sem o `v` não dispara o workflow: não sai
+instalador, e a Release não nasce.
