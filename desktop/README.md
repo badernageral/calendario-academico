@@ -12,12 +12,25 @@ própria aplicação, e o banco continua sendo um arquivo **SQLite**.
 
 Fora da pasta de instalação, para uma atualização não levar nada junto:
 
-    %APPDATA%\Calendario Academico\calendario.sqlite
-    %APPDATA%\Calendario Academico\backups\
+    %APPDATA%\calendario-academico-desktop\calendario.sqlite
+    %APPDATA%\calendario-academico-desktop\backups\
+    %APPDATA%\calendario-academico-desktop\php.log
+
+O nome da pasta vem do `name` do `package.json`, não do `productName` — é
+assim que o Electron escolhe a pasta de dados. Mudar o `name` mudaria a pasta,
+e quem atualizasse abriria com o banco vazio.
 
 O `main.js` passa esses caminhos para o PHP nas variáveis `CALENDARIO_DB` e
 `CALENDARIO_BACKUPS`; sem elas — no Apache — o sistema usa `data/` e `backups/`
 do próprio site.
+
+## Quando algo dá errado
+
+O `php.log`, recriado a cada abertura, guarda tudo o que o PHP escreveu: o
+servidor, os avisos e os erros. Um erro fatal também aparece na própria janela,
+com a mensagem e o caminho do log (o `router.php` cuida disso), e uma falha ao
+subir o PHP abre uma caixa de erro com o final do log. Na janela, **Ctrl+Shift+I**
+abre as ferramentas do desenvolvedor.
 
 ## Binário a colocar em `desktop/runtime/` (não versionado)
 
@@ -40,6 +53,17 @@ cd desktop
 npm install
 npm start
 ```
+
+## Teste de fumaça
+
+```
+node fumaca.js                      # app deste repositório, php do PATH
+node fumaca.js dist/win-unpacked    # o pacote gerado pelo npm run dist
+```
+
+Sobe o PHP como o `main.js` sobe, com o banco numa pasta com acento e espaço, e
+percorre o primeiro acesso até o painel logado. O workflow roda a segunda forma
+no Windows antes de publicar o instalador.
 
 ## Gerar o instalador
 

@@ -71,6 +71,13 @@ jobs:
           npm install
           npm run dist
 
+      # Abre o pacote exatamente como vai para o instalador (o PHP portátil, o
+      # php.ini e a app de dist/win-unpacked), com o banco numa pasta com
+      # acento e espaço. É o que pega a versão que abre em branco no Windows.
+      - name: Teste de fumaça do pacote no Windows
+        working-directory: desktop
+        run: node fumaca.js dist/win-unpacked
+
       - name: Publicar o instalador como artefato
         uses: actions/upload-artifact@v4
         with:

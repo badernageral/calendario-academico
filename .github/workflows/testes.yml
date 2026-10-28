@@ -43,6 +43,11 @@ jobs:
       - name: Abrir todas as telas
         run: php testes/telas.php
 
+      # O caminho do desktop: o router.php no lugar do Apache e o banco fora
+      # do site. No Windows de verdade ele roda no Build Desktop.
+      - name: Modo desktop (router)
+        run: node desktop/fumaca.js
+
   backup-windows:
     runs-on: windows-latest
     steps:

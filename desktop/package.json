@@ -1,6 +1,6 @@
 {
   "name": "calendario-academico-desktop",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Calendário Acadêmico — empacotamento desktop para Windows",
   "author": "IFTO",
   "main": "main.js",
@@ -23,6 +23,7 @@
       { "from": "../", "to": "app", "filter": [
         "**/*",
         "!desktop/**",
+        "!php.zip",
         "!backups/**",
         "!.git/**",
         "!.github/**",
